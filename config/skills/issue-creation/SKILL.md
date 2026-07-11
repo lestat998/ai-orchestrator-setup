@@ -1,6 +1,6 @@
 ---
 name: issue-creation
-description: "Create Gentle AI issues with issue-first checks. Trigger: creating GitHub issues, bug reports, or feature requests."
+description: "Create AI Orchestrator issues with issue-first checks. Trigger: creating GitHub issues, bug reports, or feature requests."
 license: Apache-2.0
 metadata:
   author: gentleman-programming

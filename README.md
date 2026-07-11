@@ -46,8 +46,8 @@ Edit `~/.config/opencode/AGENTS.md`. The file has two sections:
 - **No AI model credentials** — you bring your own provider key.
 - **No personal memory** — engram starts with an empty database. Your
   observations build up over time as you work.
-- **No gentle-ai dependency** — this setup is fully standalone. The skills and
-  protocols work natively with OpenCode.
+- **No external CLI dependency** — this setup is fully standalone. The skills
+  and protocols work natively with OpenCode.
 
 ## Structure
 

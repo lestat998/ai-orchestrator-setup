@@ -15,20 +15,20 @@ Commands that select, continue, apply, verify, or archive an SDD change MUST fir
 
 ## Native Engine
 
-- When the session artifact store is `openspec` or `hybrid` and the `gentle-ai` binary is available, prefer `gentle-ai sdd-status [change] --cwd <repo> --json --instructions` for read-only status and `gentle-ai sdd-continue [change] --cwd <repo>` for dispatcher output. When the store is `engram`, do not invoke the binary at all (see the next bullet).
+- When the session artifact store is `openspec` or `hybrid` and the `ai-orchestrator` binary is available, prefer `ai-orchestrator sdd-status [change] --cwd <repo> --json --instructions` for read-only status and `ai-orchestrator sdd-continue [change] --cwd <repo>` for dispatcher output. When the store is `engram`, do not invoke the binary at all (see the next bullet).
 - The native engine reads only OpenSpec file artifacts and always emits `artifactStore: openspec`; it cannot observe Engram-backed changes. Treat native status as authoritative only when the selected artifact store is `openspec` or `hybrid`. When the selected store is `engram`, do not invoke the native dispatcher at all — resolve status from Engram (`mem_search` + `mem_get_observation` on the change topic keys) using the manual status schema below, and disregard any `blocked`, `Active OpenSpec change not found`, or `nextRecommended: sdd-new` it emits for an Engram change that exists.
 - For `openspec` and `hybrid` stores, treat native status JSON as authoritative over prompt inference or manually reconstructed state.
 - When `blockedReasons` is non-empty, do not proceed to terminal, archive, or apply work. Return or report `blockedReasons` and stop unless `nextRecommended` is `verify`, in which case verification may run only to remediate or refresh evidence for the blockers. When `nextRecommended` is `resolve-blockers`, always report `blockedReasons` and stop. When `nextRecommended` is a planning token (`propose`, `spec`, `design`, or `tasks`), launch the corresponding planning phase — missing planning artifacts are the expected output of those phases, not genuine blockers.
 - `nextRecommended` is a bounded machine token for routing, not human prose. Route only by `nextRecommended` and dependency states.
 - Human-readable explanation belongs in `blockedReasons`, not `nextRecommended`.
-- If the binary is unavailable, fall back to this prompt contract and the manual status schema below. Manual fallback status MUST stay shape-compatible with native `gentle-ai.sdd-status` JSON even when values are reconstructed manually.
+- If the binary is unavailable, fall back to this prompt contract and the manual status schema below. Manual fallback status MUST stay shape-compatible with native `ai-orchestrator.sdd-status` JSON even when values are reconstructed manually.
 
 ## Status Schema
 
 Return status as markdown with these fields, or as equivalent JSON when the host supports it:
 
 ```yaml
-schemaName: gentle-ai.sdd-status
+schemaName: ai-orchestrator.sdd-status
 schemaVersion: 1
 changeName: <change-name-or-null>
 artifactStore: openspec | engram | hybrid
