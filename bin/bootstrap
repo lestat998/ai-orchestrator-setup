@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# First-time setup. Run after cloning the repo.
+set -euo pipefail
+
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO"
+
+OC="$HOME/.config/opencode"
+EXCLUDES=(--exclude node_modules --exclude package.json --exclude package-lock.json --exclude bun.lock)
+
+echo "== ai-orchestrator-setup bootstrap =="
+
+# 1. Install engram (persistent memory for the AI agent).
+if ! command -v engram >/dev/null 2>&1; then
+  echo "-> Installing engram..."
+  brew install gentleman-programming/tap/engram
+else
+  echo "-> engram already installed: $(engram --version 2>/dev/null || echo 'ok')"
+fi
+
+# 2. Install codegraph (codebase knowledge graph for structural queries).
+if ! command -v codegraph >/dev/null 2>&1; then
+  echo "-> Installing codegraph..."
+  npm install -g @colbymchenry/codegraph
+else
+  echo "-> codegraph already installed"
+fi
+
+# 3. Warn if opencode is missing.
+if ! command -v opencode >/dev/null 2>&1; then
+  echo "!! opencode not found. Install it with: brew install opencode"
+fi
+
+# 4. Back up any existing config, then install the orchestrator config.
+if [ -d "$OC" ]; then
+  BACKUP="$HOME/.config/opencode.backup.$(date +%Y%m%d-%H%M%S)"
+  echo "-> Backing up existing config to $BACKUP..."
+  rsync -a --exclude node_modules "$OC/" "$BACKUP/"
+fi
+mkdir -p "$OC"
+echo "-> Installing orchestrator config..."
+rsync -a --delete "${EXCLUDES[@]}" "$REPO/config/" "$OC/"
+
+echo
+echo "OK bootstrap complete."
+echo "   Next: open opencode and log into your model provider once"
+echo "   (credentials are stored outside the config folder — never synced)."
+echo
+echo "   Optional: customize your persona in ~/.config/opencode/AGENTS.md"
+echo "   The persona section at the top is yours to edit. The protocols below it"
+echo "   (Engram, CodeGraph, Skill Loading) are the orchestrator infrastructure."
