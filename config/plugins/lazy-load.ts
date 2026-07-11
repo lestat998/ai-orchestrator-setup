@@ -367,7 +367,4 @@ const LazyLoadPlugin: Plugin = async (_input, _options) => {
   }
 }
 
-export default {
-  id: "lazy-load",
-  server: LazyLoadPlugin,
-}
+export default LazyLoadPlugin
