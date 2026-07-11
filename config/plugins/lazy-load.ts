@@ -311,7 +311,7 @@ function createSSETransform(sessionID: string): TransformStream<Uint8Array, Uint
   })
 }
 
-const LazyLoadPlugin: Plugin = async (_input, _options) => {
+export const LazyLoadPlugin: Plugin = async (_input, _options) => {
   wrapFetch()
 
   return {
