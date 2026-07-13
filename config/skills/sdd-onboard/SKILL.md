@@ -7,13 +7,12 @@ license: MIT
 metadata:
   author: gentleman-programming
   version: "1.0"
-  delegate_only: false
+  delegate_only: true
 ---
 
 > **Phase header**: See `skills/_shared/sdd-phase-header.md` for the shared
-> Executor Override and Language Domain Contract.
-> Phase: `onboard` · Sub-agent: `sdd-executor` (but ORCHESTRATOR runs this inline —
-> the gate above is an ORCHESTRATOR NOTE, not a delegation gate).
+> Orchestrator Gate, Executor Override, and Language Domain Contract.
+> Phase: `onboard` · Sub-agent: `sdd-executor`.
 
 ## Purpose
 
@@ -22,12 +21,14 @@ You are a sub-agent responsible for ONBOARDING. You guide the user through a com
 ## What You Receive
 
 From the orchestrator:
-- Artifact store mode (`engram | openspec | hybrid | none`)
+- Project name; Engram must be available and `mem_save` must expose atomic `expected_revision` CAS with `id`, `sync_id`, and `revision_count` results
 - Optional: a suggested improvement or area to focus on
 
 ## What to Do
 
 ### Phase 1: Welcome and Codebase Analysis
+
+Before welcoming the user, verify the Engram CAS prerequisite. Stop with an upgrade requirement if `mem_save.expected_revision` or its revision metadata is unavailable; onboarding must never demonstrate unguarded canonical spec writes.
 
 Greet the user and explain what's about to happen:
 
@@ -80,7 +81,7 @@ Conclude with:
  This becomes the contract for everything that follows."
 ```
 
-Create the change folder and write `proposal.md` following `sdd-propose` format. After creating it:
+Create and persist the proposal under `sdd/{change-name}/proposal`. After creating it:
 
 ```
 "Here's the proposal I wrote. Notice the Capabilities section —
@@ -96,7 +97,7 @@ Show the user the proposal and let them review it. Ask if they want to adjust an
  No implementation details — just observable behavior."
 ```
 
-Write the delta specs following `sdd-spec` format. After creating them:
+Persist the delta specs under `sdd/{change-name}/spec`. After creating them:
 
 ```
 "See the Given/When/Then format? Each scenario is a potential test case.
@@ -109,7 +110,7 @@ Write the delta specs following `sdd-spec` format. After creating them:
 "Step 4: Design — We decide HOW to build it. Architecture decisions, file changes, rationale."
 ```
 
-Write `design.md` following `sdd-design` format. Highlight the key decisions:
+Persist the design under `sdd/{change-name}/design`. Highlight the key decisions:
 
 ```
 "Notice the Decisions section — we document WHY we chose this approach
@@ -122,7 +123,7 @@ Write `design.md` following `sdd-design` format. Highlight the key decisions:
 "Step 5: Tasks — We break the work into concrete, checkable steps."
 ```
 
-Write `tasks.md` following `sdd-tasks` format. Explain the structure:
+Persist tasks under `sdd/{change-name}/tasks`. Explain the structure:
 
 ```
 "Each task is specific enough that you know when it's done.
@@ -165,15 +166,16 @@ Run `sdd-verify` behavior. Explain the compliance matrix:
 ### Phase 9: Archive (narrated)
 
 ```
-"Step 8: Archive — We merge our delta specs into the main specs and close the change.
- The specs now describe the new behavior. The change becomes the audit trail."
+"Step 8: Archive — We validate the complete evidence chain and close the change.
+ The archive report records the artifact and verification lineage."
 ```
 
 Run `sdd-archive` behavior. Show the result:
 
 ```
-"Done! The change is archived at openspec/changes/archive/YYYY-MM-DD-{name}/
- And openspec/specs/ now reflects the new behavior."
+"The change is closed in Engram at sdd/{change-name}/archive-report/{generation}.
+ The report links every planning, implementation, and verification observation,
+ and the canonical all-domain manifest was advanced atomically."
 ```
 
 ### Phase 10: Summary
@@ -181,16 +183,17 @@ Run `sdd-archive` behavior. Show the result:
 Close the session with a recap:
 
 ```markdown
-## Onboarding Complete! 🎉
+## Onboarding Complete
 
 Here's what we built together:
 
 **Change**: {change-name}
 **Artifacts created**:
-- proposal.md — the WHY
-- specs/{capability}/spec.md — the WHAT
-- design.md — the HOW
-- tasks.md — the STEPS
+- `sdd/{change-name}/proposal` — the WHY
+- `sdd/{change-name}/spec` — the WHAT
+- `sdd/{change-name}/design` — the HOW
+- `sdd/{change-name}/tasks` — the STEPS
+- `sdd/{change-name}/archive-report/{generation}` — the immutable evidence chain for one archive generation
 
 **Code changed**:
 - {list of files}
@@ -203,7 +206,7 @@ Small tweaks? Just code. Features, APIs, architecture decisions? SDD first.
 
 **Next steps**:
 - Try /sdd-new for your next real feature
-- Check openspec/specs/ — that's your growing source of truth
+- Use `/sdd-status <change>` to inspect the Engram-backed source of truth
 - Questions? The orchestrator is always available
 ```
 

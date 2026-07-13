@@ -16,24 +16,20 @@ metadata:
 
 ## Purpose
 
-You are a sub-agent responsible for creating PROPOSALS. You take the exploration analysis (or direct user input) and produce a structured `proposal.md` document inside the change folder.
+You are a sub-agent responsible for creating PROPOSALS. You take exploration analysis or direct user input and produce a structured proposal artifact.
 
 ## What You Receive
 
 From the orchestrator:
 - Change name (e.g., "add-dark-mode")
 - Exploration analysis (from sdd-explore) OR direct user description
-- Artifact store mode (`engram | openspec | hybrid | none`)
+- Project name
 
 ## Execution and Persistence Contract
 
 > Follow **Section B** (retrieval) and **Section C** (persistence) from `skills/_shared/sdd-phase-common.md`.
 
-- **engram**: Read `sdd/{change-name}/explore` (optional) and `sdd-init/{project}` (optional). Save artifact as `sdd/{change-name}/proposal`.
-- **openspec**: Read and follow `skills/_shared/openspec-convention.md`.
-- **hybrid**: Follow BOTH conventions — persist to Engram AND write to filesystem. Retrieve dependencies from Engram (primary) with filesystem fallback.
-- **none**: Return result only. Never create or modify project files.
-- Never force `openspec/` creation unless user requested file-based persistence or mode is `hybrid`.
+- Read `sdd/{change-name}/explore` and `sdd-init/{project}` when present. Save as `sdd/{change-name}/proposal`.
 
 ## What to Do
 
@@ -56,26 +52,11 @@ From the orchestrator:
 ### Step 1: Load Skills
 Follow **Section A** from `skills/_shared/sdd-phase-common.md`.
 
-### Step 2: Create Change Directory
+### Step 2: Read Existing SDD Context
 
-**IF mode is `openspec` or `hybrid`:** create the change folder structure:
+Retrieve relevant project context and prior specification artifacts from Engram. Do not use search previews as source material.
 
-```
-openspec/changes/{change-name}/
-└── proposal.md
-```
-
-**IF mode is `engram` or `none`:** Do NOT create any `openspec/` directories. Skip this step.
-
-### Step 3: Read Existing Specs
-
-**IF mode is `openspec` or `hybrid`:** If `openspec/specs/` has relevant specs, read them to understand current behavior that this change might affect.
-
-**IF mode is `engram`:** Existing context was already retrieved from Engram in the Persistence Contract. Skip filesystem reads.
-
-**IF mode is `none`:** Skip — no existing specs to read.
-
-### Step 4: Write proposal.md
+### Step 3: Write the Proposal
 
 ```markdown
 # Proposal: {Change Title}
@@ -99,11 +80,11 @@ Be specific about the user need or technical debt being addressed.}
 ## Capabilities
 
 > This section is the CONTRACT between proposal and specs phases.
-> The sdd-spec agent reads this to know exactly which spec files to create or update.
-> Research `openspec/specs/` before filling this in.
+> The sdd-spec agent reads this to know exactly which domain sections to create or update.
+> Research existing Engram specification artifacts before filling this in.
 
 ### New Capabilities
-<!-- Capabilities being introduced. Each becomes a new `openspec/specs/<name>/spec.md`.
+<!-- Capabilities being introduced. Each becomes a domain section in the spec artifact.
      Use kebab-case names (e.g., user-auth, data-export, api-rate-limiting).
      Leave empty if no new capabilities. -->
 - `<capability-name>`: <brief description of what this capability covers>
@@ -111,7 +92,7 @@ Be specific about the user need or technical debt being addressed.}
 ### Modified Capabilities
 <!-- Existing capabilities whose REQUIREMENTS are changing (not just implementation).
      Only list here if spec-level behavior changes. Each needs a delta spec.
-     Use existing spec names from openspec/specs/. Leave empty if none. -->
+     Use existing domain names from Engram specs. Leave empty if none. -->
 - `<existing-capability-name>`: <what requirement is changing>
 
 ## Approach
@@ -145,7 +126,7 @@ Reference the recommended approach from exploration if available.}
 - [ ] {Measurable outcome}
 ```
 
-### Step 5: Persist Artifact
+### Step 4: Persist Artifact
 
 **This step is MANDATORY — do NOT skip it.**
 
@@ -154,7 +135,7 @@ Follow **Section C** from `skills/_shared/sdd-phase-common.md`.
 - topic_key: `sdd/{change-name}/proposal`
 - type: `architecture`
 
-### Step 6: Return Summary
+### Step 5: Return Summary
 
 Return to the orchestrator:
 
@@ -162,7 +143,7 @@ Return to the orchestrator:
 ## Proposal Created
 
 **Change**: {change-name}
-**Location**: `openspec/changes/{change-name}/proposal.md` (openspec/hybrid) | Engram `sdd/{change-name}/proposal` (engram) | inline (none)
+**Location**: Engram `sdd/{change-name}/proposal` (observation {id})
 
 ### Summary
 - **Intent**: {one-line summary}
@@ -176,16 +157,14 @@ Ready for specs (sdd-spec) or design (sdd-design).
 
 ## Rules
 
-- In `openspec` mode, ALWAYS create the `proposal.md` file
-- If the change directory already exists with a proposal, READ it first and UPDATE it
+- If the proposal topic already exists, retrieve it first and update the same topic key
 - Keep the proposal CONCISE - it's a thinking tool, not a novel
 - Every proposal MUST have a rollback plan
 - Every proposal MUST have success criteria
 - Use concrete file paths in "Affected Areas" when possible
-- Apply any `rules.proposal` from `openspec/config.yaml`
-- **ALWAYS fill in the Capabilities section** — this is the contract with sdd-spec. Research `openspec/specs/` first to use correct existing capability names.
-- New Capabilities → each will become `openspec/specs/<name>/spec.md` (new full spec)
-- Modified Capabilities → each will become a delta spec in the change folder
+- **ALWAYS fill in the Capabilities section** — this is the contract with sdd-spec. Research existing Engram spec artifacts first to use correct capability names.
+- New Capabilities become full domain sections in the spec artifact
+- Modified Capabilities become delta sections in the spec artifact
 - If nothing changes at the spec level (pure refactor, config change), explicitly write "None" under both sub-sections — don't leave them as template placeholders
 - **Size budget**: Proposal artifact MUST be under 450 words. Use bullet points and tables over prose. Headers organize, not explain.
 - Return envelope per **Section D** from `skills/_shared/sdd-phase-common.md`.

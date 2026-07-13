@@ -4,6 +4,8 @@ Boilerplate identical across all SDD phase skills. Sub-agents MUST load this alo
 
 Executor boundary: every SDD phase agent is an EXECUTOR, not an orchestrator. Do the phase work yourself. Do NOT launch sub-agents, do NOT call `delegate`/`task`, and do NOT bounce work back unless the phase skill explicitly says to stop and report a blocker.
 
+Project boundary: before any `mem_*` operation, call `mem_current_project` and use its returned `project` identity in every memory operation. Do not use a workspace basename. Keep the workspace root separate for `actionContext` and file operations.
+
 ## A. Skill Loading
 
 1. Check if the orchestrator injected a `## Skills to load before work` block in your launch prompt. If yes, read those exact `SKILL.md` files before task-specific work.
@@ -16,7 +18,7 @@ Executor boundary: every SDD phase agent is an EXECUTOR, not an orchestrator. Do
 
 NOTE: the preferred path is (1) — exact skill paths selected by the orchestrator. Paths (2) and (3) are fallbacks. Searching the registry is SKILL LOADING, not delegation. If `## Skills to load before work` is present, IGNORE redundant `SKILL: Load` instructions.
 
-## B. Artifact Retrieval (Engram Mode)
+## B. Artifact Retrieval
 
 **CRITICAL**: `mem_search` returns 300-char PREVIEWS, not full content. You MUST call `mem_get_observation(id)` for EVERY artifact. **Skipping this produces wrong output.**
 
@@ -38,8 +40,6 @@ Do NOT use search previews as source material.
 
 Every phase that produces an artifact MUST persist it. Skipping this BREAKS the pipeline — downstream phases will not find your output.
 
-### Engram mode
-
 ```
 mem_save(
   title: "sdd/{change-name}/{artifact-type}",
@@ -54,17 +54,7 @@ mem_save(
 `topic_key` enables upserts — saving again updates, not duplicates.
 `capture_prompt: false` is mandatory for SDD artifacts because they are automated pipeline outputs, not human/proactive memory saves. Set it when the Engram tool schema supports it; if an older schema rejects or does not expose the field, omit it rather than failing.
 
-### OpenSpec mode
-
-File was already written during the phase's main step. No additional action needed.
-
-### Hybrid mode
-
-Do BOTH: write the file to the filesystem AND call `mem_save` as above.
-
-### None mode
-
-Return result inline only. Do not write any files or call `mem_save`.
+After every successful non-archive phase, the orchestrator MUST create or upsert `sdd/{change-name}/state` with `state: active`, the completed phase, and current DAG progress (artifact status plus observation ID for every completed phase). It MUST retrieve and preserve the existing full state, including `archive_generation` and `last_archived_generation`, before updating it. A phase is not successfully transitioned until both its artifact and this active state are persisted. Archive alone owns the generation-scoped `archiving` transition and terminal `archived` update defined by `sdd-archive`.
 
 ## D. Return Envelope
 
@@ -75,7 +65,7 @@ Every phase MUST return a structured envelope to the orchestrator:
 - `status`: `success`, `partial`, or `blocked`
 - `executive_summary`: 1-3 sentence summary of what was done
 - `detailed_report`: (optional) full phase output, or omit if already inline
-- `artifacts`: list of artifact keys/paths written
+- `artifacts`: list of Engram topic keys and observation IDs written
 - `next_recommended`: the next SDD phase to run, or "none"
 - `risks`: risks discovered, or "None"
 - `skill_resolution`: how skills were loaded — `paths-injected` (received exact skill paths from orchestrator), `fallback-registry` (self-loaded paths from registry), `fallback-path` (loaded via SKILL: Load path), or `none` (no skills loaded)
@@ -85,7 +75,7 @@ Example:
 ```markdown
 **Status**: success
 **Summary**: Proposal created for `{change-name}`. Defined scope, approach, and rollback plan.
-**Artifacts**: Engram `sdd/{change-name}/proposal` | `openspec/changes/{change-name}/proposal.md`
+**Artifacts**: Engram `sdd/{change-name}/proposal` (observation {id})
 **Next**: sdd-spec or sdd-design
 **Risks**: None
 **Skill Resolution**: paths-injected — 3 skills (react-19, typescript, tailwind-4)

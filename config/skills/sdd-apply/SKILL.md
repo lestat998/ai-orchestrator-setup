@@ -16,14 +16,14 @@ metadata:
 
 ## Purpose
 
-You are a sub-agent responsible for IMPLEMENTATION. You receive specific tasks from `tasks.md` and implement them by writing actual code. You follow the specs and design strictly.
+You are a sub-agent responsible for IMPLEMENTATION. You receive specific tasks from the tasks artifact and implement them by writing actual code. You follow the specs and design strictly.
 
 ## What You Receive
 
 From the orchestrator:
 - Change name
 - The specific task(s) to implement (e.g., "Phase 1, tasks 1.1-1.3")
-- Artifact store mode (`engram | openspec | hybrid | none`)
+- Project name
 - Structured status from `skills/_shared/sdd-status-contract.md`: `schemaName`, `planningHome`, `changeRoot`, `artifactPaths`, `contextFiles`, `applyState`, task progress, dependency states, and `actionContext`
 - Delivery strategy and resolved workload decision (`ask-on-risk | auto-chain | single-pr | exception-ok`, plus PR slice or `size:exception` when applicable)
 
@@ -31,19 +31,17 @@ From the orchestrator:
 
 > Follow **Section B** (retrieval) and **Section C** (persistence) from `skills/_shared/sdd-phase-common.md`.
 
-- **engram**: Read `sdd/{change-name}/proposal`, `sdd/{change-name}/spec`, `sdd/{change-name}/design`, `sdd/{change-name}/tasks` (all required — keep tasks ID for updates). Mark tasks complete via `mem_update(id: {tasks-observation-id}, content: "...")`. Save progress as `sdd/{change-name}/apply-progress`.
-- **openspec**: Read and follow `skills/_shared/openspec-convention.md`. Update `tasks.md` with `[x]` marks.
-- **hybrid**: Follow BOTH conventions — persist progress to Engram (`mem_update` for tasks) AND update `tasks.md` with `[x]` marks on filesystem.
-- **none**: Return progress only. Do not update project artifacts.
+- Read `sdd/{change-name}/proposal`, `spec`, `design`, and `tasks` (all required; retain the tasks observation ID). Mark tasks complete with `mem_update` and save cumulative progress as `sdd/{change-name}/apply-progress`.
 
 ## Status and Workspace Guard
 
 Before reading implementation files or writing code, consume the structured status provided by the orchestrator or build the equivalent status from artifacts.
 
+- If proposal, spec, design, or tasks is missing, STOP and return `blocked`; all four planning artifacts are required for apply.
 - If `applyState` is `blocked`, STOP and return `blocked` with the missing artifacts or unsafe context.
 - If `applyState` is `all_done`, do not edit. Return `success` with `next_recommended: sdd-verify` or `sdd-archive` based on dependency state.
 - If `applyState` is `ready`, proceed only on the assigned pending tasks.
-- Read context from `contextFiles` / `artifactPaths` instead of assuming fixed filenames. For spec-driven OpenSpec, these normally map to proposal, specs, design, and tasks.
+- Read context from the observation IDs in `contextFiles` and topic keys in `artifactPaths`.
 - If `actionContext.mode` is `workspace-planning` and `allowedEditRoots` is empty, STOP before editing. Treat linked repos and folders as read-only planning context.
 - If `allowedEditRoots` is present, edit only files under those roots. If a needed edit is outside the allowed roots, STOP and report the unsafe path.
 
@@ -60,7 +58,7 @@ Before writing ANY code:
 3. Read the specs — understand WHAT the code must do
 4. Read the design — understand HOW to structure the code
 5. Read existing code in affected files — understand current patterns
-6. Check the project's coding conventions from `config.yaml`
+6. Check the project's detected conventions from `sdd-init/{project}`
 
 #### Step 2a: Enforce Review Workload Decision
 
@@ -102,8 +100,7 @@ Read the cached testing capabilities to determine implementation mode:
 
 ```
 Read testing capabilities from:
-├── engram: mem_search("sdd/{project}/testing-capabilities") → mem_get_observation(id)
-├── openspec: openspec/config.yaml → strict_tdd + testing section
+├── Engram: mem_search("sdd/{project}/testing-capabilities") → mem_get_observation(id)
 └── Fallback: check project files directly (package.json, go.mod, etc.)
 
 Resolve mode:
@@ -146,7 +143,7 @@ FOR EACH TASK:
 
 ### Step 5: Mark Tasks Complete
 
-Update `tasks.md` — change `- [ ]` to `- [x]` for completed tasks:
+Update the tasks observation — change `- [ ]` to `- [x]` for completed tasks:
 
 ```markdown
 ## Phase 1: Foundation
@@ -164,7 +161,7 @@ Follow **Section C** from `skills/_shared/sdd-phase-common.md`.
 - artifact: `apply-progress`
 - topic_key: `sdd/{change-name}/apply-progress`
 - type: `architecture`
-- Also update the tasks artifact with `[x]` marks via `mem_update` (engram) or file edit (openspec/hybrid).
+- Also update the tasks observation with `[x]` marks via `mem_update`.
 
 #### Merge Protocol
 
@@ -198,7 +195,7 @@ Return to the orchestrator:
 {IF Strict TDD Mode → include TDD Cycle Evidence table from strict-tdd.md}
 
 ### Deviations from Design
-{List any places where the implementation deviated from design.md and why.
+{List any places where the implementation deviated from the design artifact and why.
 If none, say "None — implementation matches design."}
 
 ### Issues Found
@@ -226,7 +223,7 @@ If none, say "None."}
 - ALWAYS match existing code patterns and conventions in the project
 - ALWAYS consume or produce structured status before implementation; do not infer readiness from conversation alone
 - STOP on `applyState: blocked` and do not edit; STOP on unsafe `actionContext` or edit roots
-- In `openspec` mode, mark tasks complete in `tasks.md` AS you go, not at the end
+- Mark tasks complete in the Engram tasks observation AS you go, not at the end
 - Before returning, re-read the persisted tasks artifact and ensure completed tasks are visibly marked `[x]`; internal todos are not completion evidence
 - If you discover the design is wrong or incomplete, NOTE IT in your return summary — don't silently deviate
 - If a task is blocked by something unexpected, STOP and report back
@@ -235,7 +232,6 @@ If none, say "None."}
 - When applying `size:exception`, state it explicitly in apply-progress and the return summary
 - NEVER implement tasks that weren't assigned to you
 - Skill loading is handled in Step 1 — follow any loaded skills strictly when writing code
-- Apply any `rules.apply` from `openspec/config.yaml`
 - If Strict TDD Mode is active (Step 3), load `strict-tdd.md` and follow its cycle INSTEAD of Step 4
 - When Strict TDD is active, the `strict-tdd.md` module's rules OVERRIDE Step 4 entirely
 - Return envelope per **Section D** from `skills/_shared/sdd-phase-common.md`.

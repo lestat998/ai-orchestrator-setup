@@ -89,7 +89,7 @@ Also PROACTIVELY search when:
 
 ### SESSION CLOSE PROTOCOL (mandatory)
 
-Before ending a session or saying "done" / "that's it" (any language), call `mem_session_summary` using the template embedded in the system-injected Engram protocol (Goal / Instructions / Discoveries / Accomplished / Next Steps / Relevant Files). NOT optional — skipping it means the next session starts blind.
+Before ending a session or saying "done" / "that's it" (any language), call `mem_session_summary` using the template in this Engram protocol (Goal / Instructions / Discoveries / Accomplished / Next Steps / Relevant Files). NOT optional — skipping it means the next session starts blind.
 
 ### AFTER COMPACTION
 

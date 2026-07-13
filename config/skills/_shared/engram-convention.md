@@ -28,8 +28,11 @@ Set `capture_prompt: false` when the Engram tool schema supports it; if an older
 | `tasks` | sdd-tasks | Task breakdown |
 | `apply-progress` | sdd-apply | Implementation progress (one per batch) |
 | `verify-report` | sdd-verify | Verification report |
-| `archive-report` | sdd-archive | Archive closure with lineage |
+| `archive-report/{archive-generation}` | sdd-archive | Immutable archive closure with lineage |
 | `state` | orchestrator | DAG state for recovery after compaction |
+| `sdd/specs/manifest` | sdd-archive | Atomic canonical map of every domain to an immutable version |
+
+Each archive writes all affected immutable, generation-scoped observations at `sdd/specs/{domain}/versions/{change-name}/{archive-generation}`, then atomically replaces `sdd/specs/manifest` once with `mem_save(expected_revision: baseline_revision)`. The stable manifest maps every domain to its immutable version topic, ID, sync_id, and generation; unaffected entries are preserved exactly. Read only that manifest to resolve canonical state; absence means revision `0`. A CAS conflict canonically publishes none of the generation, and its immutable versions remain non-canonical evidence. Never enumerate version topics to infer canonical state.
 
 
 
@@ -42,11 +45,13 @@ mem_save(
   type: "architecture",
   project: "{project}",
   capture_prompt: false,
-  content: "change: {change-name}\nphase: {last-phase}\nartifact_store: engram\nartifacts:\n  proposal: true\n  specs: true\n  design: false\n  tasks: false\ntasks_progress:\n  completed: []\n  pending: []\nlast_updated: {ISO date}"
+  content: "change: {change-name}\nstate: active\nphase: {last-phase}\narchive_generation: 0\narchive_generation_status: null\nlast_archived_generation: 0\nartifact_store: engram\ndag_progress:\n  explore: { status: done, observation_id: <id> }\n  proposal: { status: done, observation_id: <id> }\n  specs: { status: done, observation_id: <id> }\n  design: { status: missing, observation_id: null }\n  tasks: { status: missing, observation_id: null }\n  apply_progress: { status: missing, observation_id: null }\n  verify_report: { status: missing, observation_id: null }\n  archive_report: { status: missing, observation_id: null }\narchive_report:\n  generation: null\n  topic_key: null\n  observation_id: null\n  archived_at: null\n  spec_version_observation_ids: []\ntasks_progress:\n  completed: []\n  pending: []\nlast_updated: {ISO date}"
 )
 ```
 
 Recovery: `mem_search("sdd/{change-name}/state")` → `mem_get_observation(id)` → parse YAML → restore state.
+
+`state` is `active`, `archiving`, or `archived`. Every successful non-archive transition keeps it active and updates `dag_progress` with the artifact's exact observation ID. Before any archive output, archive selects a generation greater than `last_archived_generation`, sets `state: archiving`, and sets `archive_generation_status: archiving`. Archive finalization sets `state: archived`, `phase: archived`, `archive_generation_status: published`, `last_archived_generation: archive_generation`, and same-generation report fields. A manifest CAS or true recovery conflict sets `archive_generation_status: aborted-conflicted`, restores `state: active`, `phase: rebase-required`, and clears current archive references plus `reopened_at` and `reopen_reason`, so spec can rerun; that generation is never reused. Active selection includes `archiving` for recovery and excludes archived changes. Reopening increments `archive_generation` above the preserved last archived value, reserves it with `archive_generation_status: pending`, sets `state: active`, `phase: reopened`, records `reopened_at` and `reopen_reason`, and clears current archive references before any artifact update; old reports remain historical.
 
 ## Recovery Protocol (2 steps)
 
@@ -109,7 +114,7 @@ mem_save(
 )
 ```
 
-`capture_prompt: false` is REQUIRED for SDD artifacts when the Engram tool schema supports it. Engram v1.15.3 captures user prompts by default for human/proactive saves, but SDD artifacts are automated pipeline outputs. Do not infer this from `type` because both SDD artifacts and human architecture decisions use `architecture`. If an older schema rejects or does not expose `capture_prompt`, omit it rather than failing.
+`capture_prompt: false` is REQUIRED for SDD artifacts when the Engram tool schema supports it. Engram v1.15.3 captures user prompts by default for human/proactive saves, but SDD artifacts are automated pipeline outputs. Do not infer this from `type` because both SDD artifacts and human architecture decisions use `architecture`. If an older schema rejects or does not expose `capture_prompt`, omit it rather than failing. SDD additionally requires an Engram version whose `mem_save` schema exposes `expected_revision` and returns `id`, `sync_id`, and `revision_count`; missing CAS support is not backward-compatible and MUST block SDD initialization and onboarding.
 
 Update existing artifact (when you have the observation ID):
 ```
@@ -127,13 +132,13 @@ mem_search(query: "sdd/{change-name}/", project: "{project}")
 
 ## Project Name Resolution (engram v1.11.0+)
 
-Engram auto-detects the project name from the git remote at MCP startup. The `--project` flag and `ENGRAM_PROJECT` env var can override detection. All project names are normalized to lowercase and trimmed.
+Every SDD command and phase calls `mem_current_project` before memory work and uses the returned `project` identity for every Engram operation. This is the same Engram identity used by the plugin's remote-first detection (with Engram overrides and normalization applied by Engram). Never substitute the workspace basename. The workspace root remains separate for `actionContext` and repository operations.
 
 If the agent saves a memory under a project name that doesn't match existing observations, engram warns about potential name drift. Use `mem_merge_projects` (MCP tool) or `engram projects consolidate` (CLI) to merge variants.
 
 ## Upsert Behavior
 
-Same `topic_key` + `project` + `scope` → UPDATE (overwrite), not INSERT. Previous content is lost — `revision_count` increments but old content is NOT saved. This is by design — engram is working memory, not an audit trail. For iteration history or team collaboration, use `openspec` or `hybrid` mode.
+Same `topic_key` + `project` + `scope` updates the current observation rather than inserting a duplicate. Previous content is not retained, so archive reports and domain versions use generation-scoped topic keys and are never updated after creation. Create archive reports, including recovery-created reports, with `mem_save(expected_revision: 0)`; on `revision_conflict`, retrieve the exact-topic winner and reuse it only when its generation plus complete artifact and immutable-version lineage are identical. The canonical spec manifest is the exception: it is one stable topic updated only by `mem_save(expected_revision: <baseline>)`.
 
 ## Why This Convention
 

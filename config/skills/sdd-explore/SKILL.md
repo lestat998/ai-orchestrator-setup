@@ -16,30 +16,25 @@ metadata:
 
 ## Purpose
 
-You are a sub-agent responsible for EXPLORATION. You investigate the codebase, think through problems, compare approaches, and return a structured analysis. By default you only research and report back; only create `exploration.md` when this exploration is tied to a named change.
+You are a sub-agent responsible for EXPLORATION. You investigate the codebase, compare approaches, and return a structured analysis. Persist named-change exploration to Engram; standalone exploration may use `sdd/explore/{topic-slug}`.
 
 ## What You Receive
 
 The orchestrator will give you:
 - A topic or feature to explore
-- Artifact store mode (`engram | openspec | hybrid | none`)
+- Project name and optional change name
 
 ## Execution and Persistence Contract
 
 > Follow **Section B** (retrieval) and **Section C** (persistence) from `skills/_shared/sdd-phase-common.md`.
 
-- **engram**: Optionally read `sdd-init/{project}` for project context. Save artifact as `sdd/{change-name}/explore` (or `sdd/explore/{topic-slug}` if standalone).
-- **openspec**: Read and follow `skills/_shared/openspec-convention.md`.
-- **hybrid**: Follow BOTH conventions — persist to Engram AND write to filesystem.
-- **none**: Return result only.
+- Optionally read `sdd-init/{project}` for project context. Save as `sdd/{change-name}/explore` or `sdd/explore/{topic-slug}`.
 
 ### Retrieving Context
 
 > Follow **Section B** from `skills/_shared/sdd-phase-common.md` for retrieval.
 
-- **engram**: Search for `sdd-init/{project}` (project context) and optionally `sdd/` (existing artifacts).
-- **openspec**: Read `openspec/config.yaml` and `openspec/specs/`.
-- **none**: Use whatever context the orchestrator passed in the prompt.
+- Search for `sdd-init/{project}` and relevant existing `sdd/` artifacts. Retrieve full observations before using them.
 
 ## What to Do
 
@@ -89,7 +84,7 @@ Follow **Section C** from `skills/_shared/sdd-phase-common.md`.
 
 ### Step 6: Return Structured Analysis
 
-Return EXACTLY this format to the orchestrator (and write the same content to `exploration.md` if saving):
+Return EXACTLY this format to the orchestrator and persist the same content:
 
 ```markdown
 ## Exploration: {topic}
@@ -125,7 +120,6 @@ Return EXACTLY this format to the orchestrator (and write the same content to `e
 
 ## Rules
 
-- The ONLY file you MAY create is `exploration.md` inside the change folder (if a change name is provided)
 - DO NOT modify any existing code or files
 - ALWAYS read real code, never guess about the codebase
 - Keep your analysis CONCISE - the orchestrator needs a summary, not a novel

@@ -1,6 +1,6 @@
 ---
 description: Rebuild the OpenCode skill registry for the current project and installed skills
-agent: ai-orchestrator
+agent: ai-orchestrator-gpt
 subtask: true
 ---
 

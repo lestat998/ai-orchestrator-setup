@@ -46,18 +46,6 @@ content: registry markdown
 capture_prompt: false when available
 ```
 
-## OpenSpec Skeleton
-
-```text
-openspec/
-├── config.yaml
-├── specs/
-└── changes/
-    └── archive/
-```
-
-`config.yaml` should include concise context, `strict_tdd`, testing capabilities, and phase rules for proposal/spec/design/tasks/apply/verify/archive. Keep `context:` under 10 lines.
-
 ## Testing Capabilities Format
 
 ```markdown
@@ -95,4 +83,4 @@ openspec/
 
 ## Output Templates
 
-For each mode, include project, stack, persistence, Strict TDD Mode, Testing Capabilities table, artifacts created/saved, limitations where relevant, and next steps. Engram mode must mention local/non-shareable limitations; none mode must recommend enabling persistence.
+Include project, stack, Engram topic keys and observation IDs, Strict TDD Mode, Testing Capabilities table, registry path, limitations, and next steps.

@@ -16,22 +16,19 @@ metadata:
 
 ## Purpose
 
-You are a sub-agent responsible for TECHNICAL DESIGN. You take the proposal and specs, then produce a `design.md` that captures HOW the change will be implemented — architecture decisions, data flow, file changes, and technical rationale.
+You are a sub-agent responsible for TECHNICAL DESIGN. You take the proposal and specs, then produce a design artifact that captures HOW the change will be implemented.
 
 ## What You Receive
 
 From the orchestrator:
 - Change name
-- Artifact store mode (`engram | openspec | hybrid | none`)
+- Project name
 
 ## Execution and Persistence Contract
 
 > Follow **Section B** (retrieval) and **Section C** (persistence) from `skills/_shared/sdd-phase-common.md`.
 
-- **engram**: Read `sdd/{change-name}/proposal` (required) and `sdd/{change-name}/spec` (optional — may not exist if running in parallel with sdd-spec). Save as `sdd/{change-name}/design`.
-- **openspec**: Read and follow `skills/_shared/openspec-convention.md`.
-- **hybrid**: Follow BOTH conventions — persist to Engram AND write `design.md` to filesystem. Retrieve dependencies from Engram (primary) with filesystem fallback.
-- **none**: Return result only. Never create or modify project files.
+- Read `sdd/{change-name}/proposal` (required) and `sdd/{change-name}/spec` when available. Save as `sdd/{change-name}/design`.
 
 ## What to Do
 
@@ -46,18 +43,7 @@ Before designing, read the actual code that will be affected:
 - Dependencies and interfaces
 - Test infrastructure (if any)
 
-### Step 3: Write design.md
-
-**IF mode is `openspec` or `hybrid`:** Create the design document:
-
-```
-openspec/changes/{change-name}/
-├── proposal.md
-├── specs/
-└── design.md              ← You create this
-```
-
-**IF mode is `engram` or `none`:** Do NOT create any `openspec/` directories or files. Compose the design content in memory — you will persist it in Step 4.
+### Step 3: Write the Design
 
 #### Design Document Format
 
@@ -141,7 +127,7 @@ Return to the orchestrator:
 ## Design Created
 
 **Change**: {change-name}
-**Location**: `openspec/changes/{change-name}/design.md` (openspec/hybrid) | Engram `sdd/{change-name}/design` (engram) | inline (none)
+**Location**: Engram `sdd/{change-name}/design` (observation {id})
 
 ### Summary
 - **Approach**: {one-line technical approach}
@@ -153,7 +139,7 @@ Return to the orchestrator:
 {List any unresolved questions, or "None"}
 
 ### Next Step
-Ready for tasks (sdd-tasks).
+Ready for tasks (sdd-tasks) only after the spec also exists. Spec and design may run in parallel after proposal.
 ```
 
 ## Rules
@@ -164,7 +150,6 @@ Ready for tasks (sdd-tasks).
 - Use the project's ACTUAL patterns and conventions, not generic best practices
 - If you find the codebase uses a pattern different from what you'd recommend, note it but FOLLOW the existing pattern unless the change specifically addresses it
 - Keep ASCII diagrams simple — clarity over beauty
-- Apply any `rules.design` from `openspec/config.yaml`
 - If you have open questions that BLOCK the design, say so clearly — don't guess
 - **Size budget**: Design artifact MUST be under 800 words. Architecture decisions as tables (option | tradeoff | decision). Code snippets only for non-obvious patterns.
 - Return envelope per **Section D** from `skills/_shared/sdd-phase-common.md`.

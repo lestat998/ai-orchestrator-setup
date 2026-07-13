@@ -1,12 +1,12 @@
 ---
 name: sdd-init
-description: "Trigger: sdd init, iniciar sdd, openspec init. Initialize SDD context, testing capabilities, registry, and persistence."
+description: "Trigger: sdd init, initialize SDD. Detect project context, testing capabilities, registry, and Engram persistence."
 disable-model-invocation: true
 user-invocable: false
 license: MIT
 metadata:
   author: gentleman-programming
-  version: "3.0"
+  version: "4.0"
   delegate_only: true
 ---
 
@@ -16,47 +16,42 @@ metadata:
 
 ## Activation Contract
 
-Run this phase when the orchestrator/user asks to initialize SDD in a project. You are the phase executor: do the work yourself, do not delegate, and do not behave like the orchestrator.
+Initialize SDD for the current project. Engram is mandatory; if its tools are unavailable or `mem_save` does not expose atomic `expected_revision` CAS with `id`, `sync_id`, and `revision_count` results, stop and report the blocker.
 
 ## Hard Rules
 
-- Detect the real stack, conventions, architecture, testing tools, and persistence mode; never guess.
-- In `engram` mode, do **not** create `openspec/`.
-- In `openspec` mode, follow `../_shared/openspec-convention.md` and write file artifacts.
-- In `hybrid` mode, write both openspec files and Engram observations.
-- Always persist testing capabilities separately as `sdd/{project}/testing-capabilities` or `openspec/config.yaml` `testing:`.
-- Always build `.atl/skill-registry.md`; also save `skill-registry` to Engram when available.
-- Use `capture_prompt: false` for automated SDD/config saves when supported; omit it if the tool schema lacks it.
-- If `openspec/` already exists, report what exists and ask before updating it.
+- Detect the real stack, architecture, conventions, and testing tools; never guess.
+- Persist project context as `sdd-init/{project}`.
+- Persist testing capabilities separately as `sdd/{project}/testing-capabilities`.
+- Build `.atl/skill-registry.md` and save `skill-registry` to Engram.
+- Use `capture_prompt: false` for automated saves when supported.
+- Do not create repository-local SDD planning artifacts.
+- Require the installed Engram `mem_save` schema to expose `expected_revision`; do not silently downgrade to unguarded spec-manifest writes.
 
-## Decision Gates
+## Strict TDD Resolution
 
-| Input | Action |
+| Evidence | Result |
 |---|---|
-| `mode=engram` | Save context and capabilities to Engram only. |
-| `mode=openspec` | Create/update openspec bootstrap files only. |
-| `mode=hybrid` | Do both Engram and openspec persistence. |
-| `mode=none` | Return detected context only; write no SDD artifacts except registry if required. |
-| strict TDD marker/config found | Use that value. |
-| no marker/config but test runner exists | Default `strict_tdd: true`. |
-| no test runner | Set `strict_tdd: false` and explain unavailable. |
+| Agent/project marker explicitly sets Strict TDD | Use that value. |
+| No marker and a test runner exists | Default `strict_tdd: true`. |
+| No test runner | Set `strict_tdd: false` and explain why. |
 
 ## Execution Steps
 
-1. Inspect project files (`package.json`, `go.mod`, `pyproject.toml`, CI, lint/test config) and summarize stack/conventions.
-2. Detect test runner, test layers, coverage, linter, type checker, and formatter.
-3. Resolve Strict TDD from agent marker, `openspec/config.yaml`, detected runner fallback, or no-runner fallback.
-4. Initialize persistence for the resolved mode.
-5. Build `.atl/skill-registry.md` using the skill-registry scan rules.
-6. Persist testing capabilities and project context.
-7. Return the structured initialization envelope.
+1. Confirm Engram availability and that `mem_save` exposes `expected_revision` plus `id`, `sync_id`, and `revision_count` results; stop if not.
+2. Inspect project manifests, CI, lint, format, type-check, and test configuration.
+3. Detect test runner, test layers, coverage, and quality commands.
+4. Resolve Strict TDD using the table above.
+5. Build `.atl/skill-registry.md` using the registry scan rules.
+6. Save project context, testing capabilities, and registry to their deterministic topic keys.
+7. Return the shared response envelope with observation IDs.
 
 ## Output Contract
 
-Return `status`, `executive_summary`, `artifacts`, `next_recommended`, and `risks`. Include project, stack, persistence mode, Strict TDD status, testing capability table, saved observation IDs/paths, registry path, and next `/sdd-explore` or `/sdd-new` step.
+Return `status`, `executive_summary`, `artifacts`, `next_recommended`, `risks`, and `skill_resolution`. Include project, stack, Strict TDD status, testing capability table, saved topic keys and observation IDs, registry path, and the next `/sdd-explore` or `/sdd-new` step.
 
 ## References
 
-- [references/init-details.md](references/init-details.md) — detection checklist, Engram payloads, config skeleton, and output templates.
-- `../_shared/engram-convention.md` — Engram artifact naming.
-- `../_shared/openspec-convention.md` — openspec layout and rules.
+- [references/init-details.md](references/init-details.md)
+- `../_shared/engram-convention.md`
+- `../_shared/sdd-phase-common.md`

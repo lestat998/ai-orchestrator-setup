@@ -1,12 +1,12 @@
 ---
 name: sdd-archive
-description: "Archive a completed SDD change by syncing delta specs. Trigger: orchestrator launches archive after implementation and verification."
+description: "Archive a completed SDD change with an Engram closure report. Trigger: orchestrator launches archive after implementation and verification."
 disable-model-invocation: true
 user-invocable: false
 license: MIT
 metadata:
   author: gentleman-programming
-  version: "2.0"
+  version: "3.0"
   delegate_only: true
 ---
 
@@ -16,177 +16,113 @@ metadata:
 
 ## Purpose
 
-You are a sub-agent responsible for ARCHIVING. You merge delta specs into the main specs (source of truth), then move the change folder to the archive. You complete the SDD cycle.
+Close a completed SDD change by validating its persisted task and verification evidence, creating generation-scoped immutable domain specs, then saving a closure report at `sdd/{change-name}/archive-report/{generation}`.
 
 ## What You Receive
 
-From the orchestrator:
-- Change name
-- Artifact store mode (`engram | openspec | hybrid | none`)
-- Structured status from `skills/_shared/sdd-status-contract.md`, including artifact paths, task progress, dependency states, and actionContext
-- Any explicit intentional archive override text from the user/orchestrator
+- Change name and project
+- Structured status from `skills/_shared/sdd-status-contract.md`
+- Any explicit non-critical partial-archive or stale-checkbox reconciliation text
 
-## Execution and Persistence Contract
+## Required Artifacts
 
-> Follow **Section B** (retrieval) and **Section C** (persistence) from `skills/_shared/sdd-phase-common.md`.
+Retrieve full observations for `proposal`, `spec`, `design`, `tasks`, `apply-progress` when present, and `verify-report`. Tasks and verify-report are mandatory. Retrieve exactly `sdd/specs/manifest` (or confirm that exact topic is absent), every immutable version referenced by the spec's affected-domain baseline, and same-generation versions on recovery. Record the archive generation, every source, manifest CAS baseline/result, and every resulting immutable version ID/sync_id in the archive report. Never enumerate version topics.
 
-- **engram**: Read `sdd/{change-name}/proposal`, `sdd/{change-name}/spec`, `sdd/{change-name}/design`, `sdd/{change-name}/tasks`, `sdd/{change-name}/verify-report` (all required). Record all observation IDs in the archive report for traceability. Save as `sdd/{change-name}/archive-report`.
-- **openspec**: Read and follow `skills/_shared/openspec-convention.md`. Perform merge and archive folder moves.
-- **hybrid**: Follow BOTH conventions — persist archive report to Engram (with observation IDs) AND perform filesystem merge + archive folder moves.
-- **none**: Return closure summary only. Do not perform archive file operations.
+## Archive Generation and Retry Gate
 
-### Task Completion Gate
+Before normal archive work, retrieve the full state. `archive_generation` is a monotonically increasing integer, initialized to `0` for a new change; `last_archived_generation` is also initialized to `0` and changes only after successful finalization.
 
-`sdd-apply` is responsible for marking completed tasks in the persisted tasks artifact. `sdd-archive` is responsible for validating that the persisted artifact reflects the final state before closing the cycle.
+- If state is `archived`, retrieve only the report referenced by state. Require its generation to equal `archive_generation`, validate its lineage, and return the prior success without writing anything.
+- If state is `archiving`, this is recovery of exactly `archive_generation`; never increment it. Retrieve only `sdd/{change-name}/archive-report/{archive_generation}` when present, same-generation version topics, the exact manifest, and any immutable parent chain needed for affected-domain validation. For each affected domain, accept either the exact published generation version or a descendant whose immutable parent chain reaches that exact version. Ignore unrelated manifest revisions and unaffected-domain changes after publication. After every source, CAS baseline/result, and version is validated, validate and reuse a matching report or, if it is absent, deterministically construct and create that generation's report with `mem_save(expected_revision: 0)` from the validated evidence before finalization. On `revision_conflict`, retrieve the winning observation at that exact report topic and call `mem_get_observation` for its full content; continue only if its generation, complete artifact/source observation-ID set, and complete immutable-version topic/ID/sync_id/parent lineage are identical to the deterministic report; otherwise return `blocked`. Derive its publication revision as the recorded baseline revision plus one and its completion date from persisted `archive_started_at`; never substitute retry-time values. If any affected-domain ref is missing or its immutable parent chain does not reach the generation version, set `archive_generation_status: aborted-conflicted`, restore `state: active`, set `phase: rebase-required`, clear current archive references plus any reopen reservation metadata, and require `sdd-spec`; never retry publication from a partial pre-CAS state.
+- If state is `active`, reports and versions from older generations are history, not retry evidence. Run all read-only gates, then prepare the operation before any archive version or report write: increment when `archive_generation == last_archived_generation` or `archive_generation_status == aborted-conflicted`; reuse a greater generation only when reopen reserved it with a pending status. Persist `state: archiving`, `phase: archiving`, `archive_generation_status: archiving`, `archive_started_at`, and cleared current archive-report/version references.
+- If a current-generation report or version exists but its generation, change/project identity, source IDs, parent baselines, lineage resolution, topic, or full resulting content differs, return `blocked`; never replace it or borrow evidence from another generation.
+- Finalization-only recovery is prohibited for `active` state and for any report whose generation does not exactly match state.
 
-Before syncing specs or moving any archive folder, inspect the tasks artifact:
+## Task Completion Gate
 
-- **engram**: read the full `sdd/{change-name}/tasks` observation.
-- **openspec/hybrid**: read `openspec/changes/{change-name}/tasks.md`.
+Inspect the full tasks observation. If any implementation task remains unchecked:
 
-If any implementation task remains unchecked (`- [ ]`):
+1. Stop and return `blocked`.
+2. Require `sdd-apply` to update the persisted tasks observation.
+3. Reconcile stale checkboxes only when the orchestrator explicitly authorizes it and apply-progress plus verify-report prove completion. Record the exact reason and evidence IDs.
 
-1. STOP and return `blocked`; do not sync specs, move the change folder, or claim the SDD cycle is complete.
-2. Report that `sdd-apply` must be rerun or corrected so it marks completed tasks in the persisted tasks artifact.
-3. Only proceed if the orchestrator explicitly instructs you to reconcile stale checkboxes and `apply-progress`/`verify-report` prove every unchecked task is complete. If you do this exceptional repair, record the exact reconciliation reason in the archive report.
+Internal todo state is not completion evidence. The tasks observation is authoritative.
 
-The archived audit trail MUST NOT contain stale unchecked tasks for completed work. Internal todo state is not enough; the persisted SDD task artifact is the source of truth for completion visibility.
+## Verification Gate
 
-### Strict-vs-OpenSpec Archive Policy
+- CRITICAL issues or a failing/ambiguous verify-report always block archive and have no override.
+- Missing proposal, spec, or design must be reported. Continue only with explicit intentional partial-archive approval.
+- A non-critical partial archive must be marked `intentional-with-warnings` and include the user's reason.
 
-OpenSpec permits archiving with incomplete artifacts or tasks after a user confirmation. ai-orchestrator is stricter by default:
+## Spec Lineage Gate
 
-- Incomplete implementation tasks block archive unless they are stale checkboxes and apply-progress/verify-report prove completion.
-- CRITICAL issues in `verify-report` always block archive. Do not accept an override for CRITICAL verification issues.
-- `sdd-archive` does not own normal task completion. `sdd-apply` owns checkbox completion; archive may only perform exceptional mechanical reconciliation with proof from apply-progress and verify-report.
-- Missing proposal/spec/design artifacts should be reported. Archive may continue only when the user explicitly chooses an intentional partial archive and the archive report records what was missing.
+Before creating any domain version:
 
-### Action Context Guard
+1. Read the required `specBaseline` manifest observation ID, sync_id, revision_count, and all affected-domain immutable version refs from the change spec. Manifest absence is valid only with null IDs and revision `0`; an absent domain entry must be explicit.
+2. Retrieve exactly `sdd/specs/manifest` in full, or confirm it is absent. Before writing any version, require its ID, sync_id, revision_count, and affected-domain refs to match the complete recorded baseline.
+3. Require `relationships.conflictsWith` to be empty after fresh status reconstruction.
+4. On recovery after publication, validate only affected domains. For each one, require the current manifest ref either to equal this generation's exact immutable version ID/sync_id or to name a descendant whose immutable parent chain reaches that exact version. Unaffected entries and unrelated manifest revision advances are irrelevant. A missing affected-domain ref or a chain that terminates without the exact generation version is a true conflict that aborts the generation and requires a fresh spec/rebase.
 
-- If structured status reports `actionContext.mode: workspace-planning`, STOP. Do not move workspace changes into repo-local archives or edit linked repos.
-- If `allowedEditRoots` is present, archive operations must stay inside those roots.
+If a marker is missing/malformed, the exact manifest baseline does not match before the first version write, or an unresolved explicit conflict exists, stop before ALL version writes, archive-report persistence, and archived-state updates. Return `blocked` and require a fresh spec/rebase or conflict resolution. Partial-archive approval does not override this gate. Never update or overwrite a domain version.
 
-## What to Do
+## Action Context Guard
 
-### Step 1: Load Skills
-Follow **Section A** from `skills/_shared/sdd-phase-common.md`.
+If `actionContext.mode` is `workspace-planning`, stop. If `allowedEditRoots` exists, any exceptional implementation edit must remain inside it. Normal archive work does not edit project files.
 
-### Step 2: Sync Delta Specs to Main Specs
+## Execution Steps
 
-Do not start this step until the **Task Completion Gate** above passes.
+1. Load skills using shared Section A.
+2. Retrieve every artifact using shared Section B; never use previews.
+3. Enforce task, verification, spec-lineage, partial-archive, retry, and action-context gates.
+4. For a new operation only, persist the `archiving` state transition, `archive_generation_status: archiving`, and new or reopen-reserved generation defined above. Stop if that state write fails. Recovery uses the generation already stored in `state: archiving`.
+5. Only after the spec-lineage gate passes for every domain, deterministically apply each verified delta to its recorded baseline and create all immutable observations at `sdd/specs/{domain}/versions/{change-name}/{archive_generation}`. Each MUST include `domain`, `changeName`, `archiveGeneration`, parent version ID/sync_id/generation, manifest baseline metadata, all source IDs, and the full resulting specification. For an absent domain baseline, create a root version. Reuse an existing same-generation topic only when its full content, sources, and parent metadata exactly match; otherwise abort the generation. Never upsert or mutate a version observation after creation.
+6. After every affected immutable version exists, construct the complete next manifest by preserving every unaffected baseline entry and replacing all affected entries with their exact new topic/ID/sync_id/generation. Perform exactly one `mem_save` on `sdd/specs/manifest` with `expected_revision: specBaseline.manifestRevisionCount`. Require the returned ID, sync_id, and revision_count to match the saved manifest. Never publish per-domain pointers. If CAS conflicts, no version is canonical: persist `archive_generation_status: aborted-conflicted`, restore `state: active`, set `phase: rebase-required`, clear current archive references plus `reopened_at` and `reopen_reason`, and permit `sdd-spec` to rerun. Do not create an archive report or terminal archived state.
+7. Build an archive report containing `archiveGeneration`, closure status, task totals, verification verdict, exceptions, requirement/domain summary, the complete artifact/source observation-ID set, each immutable version topic/ID/sync_id plus parent ID/sync_id/generation lineage, manifest baseline/result ID/sync_id/revision_count, and ISO completion date.
+8. Create it once at `sdd/{change-name}/archive-report/{archive_generation}` with `mem_save(expected_revision: 0)`, including during recovery. On `revision_conflict`, retrieve the winning observation from that exact topic and call `mem_get_observation` for its full content; continue only when its generation, complete artifact/source observation-ID set, and complete immutable-version topic/ID/sync_id/parent lineage exactly match the deterministic report; otherwise return `blocked`. On retry after successful manifest publication, validate and reuse that identical same-generation report, or attempt the same zero-revision creation from the validated sources, versions, manifest CAS result (whose publication revision is the baseline revision plus one), and persisted `archive_started_at` when absent; never update it, use retry-time values, or use an older report.
+9. Only while state remains `archiving` at the same generation and every affected manifest ref is the exact generation version or a descendant whose immutable parent chain reaches it, update `sdd/{change-name}/state` with `state: archived`, `phase: archived`, `archive_generation_status: published`, `last_archived_generation: archive_generation`, `archived_at`, archive-report generation/topic/ID, immutable spec versions, and the publication manifest ID/sync_id/revision recorded by the report, preserving artifact and task state. This idempotent finalization MUST never be followed by an active-state reconciliation.
+10. Return the shared Section D envelope.
 
-**IF mode is `engram`:** Skip filesystem sync — artifacts live in Engram only. The archive report (Step 5) records all observation IDs for traceability.
-
-**IF mode is `none`:** Skip — no artifacts to sync.
-
-**IF mode is `openspec` or `hybrid`:** For each delta spec in `openspec/changes/{change-name}/specs/`:
-
-#### If Main Spec Exists (`openspec/specs/{domain}/spec.md`)
-
-Read the existing main spec and apply the delta:
-
-```
-FOR EACH SECTION in delta spec:
-├── ADDED Requirements → Append to main spec's Requirements section
-├── MODIFIED Requirements → Replace the matching requirement in main spec
-├── REMOVED Requirements → Delete the matching requirement from main spec after recording Reason/Migration
-└── RENAMED Requirements → Rename the matching requirement while preserving scenarios unless the delta also modifies them
-```
-
-**Merge carefully:**
-- Match requirements by name (e.g., "### Requirement: Session Expiration")
-- Preserve all OTHER requirements that aren't in the delta
-- Maintain proper Markdown formatting and heading hierarchy
-- For REMOVED requirements, require `(Reason: ...)` and `(Migration: ...)` notes in the delta before deleting from main specs
-- For RENAMED requirements, require the old and new requirement names to be explicit
-
-#### If Main Spec Does NOT Exist
-
-The delta spec IS a full spec (not a delta). Copy it directly:
-
-```bash
-# Copy new spec to main specs
-openspec/changes/{change-name}/specs/{domain}/spec.md
-  → openspec/specs/{domain}/spec.md
-```
-
-### Step 3: Move to Archive
-
-**IF mode is `engram`:** Skip — there are no `openspec/` directories to move. The archive report in Engram serves as the audit trail.
-
-**IF mode is `none`:** Skip — no filesystem operations.
-
-**IF mode is `openspec` or `hybrid`:** Move the entire change folder to archive with date prefix:
-
-```
-openspec/changes/{change-name}/
-  → openspec/changes/archive/YYYY-MM-DD-{change-name}/
-```
-
-Use today's date in ISO format (e.g., `2026-02-16`).
-
-### Step 4: Verify Archive
-
-**IF mode is `openspec` or `hybrid`:** Confirm:
-- [ ] Main specs updated correctly
-- [ ] Change folder moved to archive
-- [ ] Archive contains all artifacts (proposal, specs, design, tasks)
-- [ ] Archived `tasks.md` has no unchecked implementation tasks, unless the orchestrator explicitly approved archive-time stale-checkbox reconciliation backed by apply-progress/verify-report proof
-- [ ] Active changes directory no longer has this change
-
-**IF mode is `engram`:** Confirm all artifact observation IDs are recorded in the archive report and the tasks observation has no unchecked implementation tasks unless the orchestrator explicitly approved archive-time stale-checkbox reconciliation backed by apply-progress/verify-report proof.
-
-**IF mode is `none`:** Skip verification — no persisted artifacts.
-
-### Step 5: Persist Archive Report
-
-**This step is MANDATORY — do NOT skip it.**
-
-Follow **Section C** from `skills/_shared/sdd-phase-common.md`.
-- artifact: `archive-report`
-- topic_key: `sdd/{change-name}/archive-report`
-- type: `architecture`
-
-### Step 6: Return Summary
-
-Return to the orchestrator:
+## Output Contract
 
 ```markdown
 ## Change Archived
 
 **Change**: {change-name}
-**Archived to**: `openspec/changes/archive/{YYYY-MM-DD}-{change-name}/` (openspec/hybrid) | Engram archive report (engram) | inline (none)
+**Archive generation**: {generation}
+**Archive report**: Engram `sdd/{change-name}/archive-report/{generation}` (observation {id})
+**Status**: complete | intentional-with-warnings
 
-### Specs Synced
-| Domain | Action | Details |
-|--------|--------|---------|
-| {domain} | Created/Updated | {N added, M modified, K removed requirements} |
+### Evidence
+| Artifact | Topic key | Observation ID |
+|----------|-----------|----------------|
+| Proposal | `sdd/{change-name}/proposal` | {id} |
+| Spec | `sdd/{change-name}/spec` | {id} |
+| Design | `sdd/{change-name}/design` | {id} |
+| Tasks | `sdd/{change-name}/tasks` | {id} |
+| Apply progress | `sdd/{change-name}/apply-progress` | {id} |
+| Verify report | `sdd/{change-name}/verify-report` | {id} |
 
-### Archive Contents
-- proposal.md ✅
-- specs/ ✅
-- design.md ✅
-- tasks.md ✅ ({N}/{N} tasks complete)
+### Versioned Specifications
+| Domain | Immutable topic key | Version ID / sync_id | Generation |
+|--------|---------------------|----------------------|------------|
+| {domain} | `sdd/specs/{domain}/versions/{change-name}/{generation}` | {id} / {sync_id} | {generation} |
 
-### Source of Truth Updated
-The following specs now reflect the new behavior:
-- `openspec/specs/{domain}/spec.md`
+Canonical manifest: `sdd/specs/manifest` ({manifest_id} / {manifest_sync_id} / revision {revision_count})
 
-### SDD Cycle Complete
-The change has been fully planned, implemented, verified, and archived.
-Ready for the next change.
+### Closure
+- Tasks: {N}/{N} complete
+- Verification: {PASS | PASS WITH WARNINGS}
+- Exceptions: {None or exact approved text}
 ```
 
 ## Rules
 
-- NEVER archive a change that has CRITICAL issues in its verification report
-- If the user explicitly approves a non-critical partial archive or stale-checkbox reconciliation, record the exact reason in the archive report and mark the archive as intentional-with-warnings
-- NEVER archive completed work while `tasks.md` / the tasks observation still shows stale unchecked implementation tasks
-- ALWAYS sync delta specs BEFORE moving to archive
-- When merging into existing specs, PRESERVE requirements not mentioned in the delta
-- Use ISO date format (YYYY-MM-DD) for archive folder prefix
-- If the merge would be destructive (removing large sections), WARN the orchestrator and ask for confirmation
-- The archive is an AUDIT TRAIL — never delete or modify archived changes
-- If `openspec/changes/archive/` doesn't exist, create it
-- Apply any `rules.archive` from `openspec/config.yaml`
-- Return envelope per **Section D** from `skills/_shared/sdd-phase-common.md`.
+- Never archive CRITICAL verification issues.
+- Never close while the tasks observation contains unchecked implementation work.
+- Never delete or rewrite prior phase observations during archive.
+- Never create a version when the recorded canonical manifest baseline is missing/mismatched or while an explicit conflict remains unresolved.
+- Publish all domains through one manifest `expected_revision` CAS; sequential or partial canonical publication is prohibited.
+- Create every generation-scoped archive report with `expected_revision: 0`; a conflict winner is reusable only after exact generation, artifact, and immutable-version lineage validation.
+- A CAS loser restores active/rebase-required state, records the generation as aborted/conflicted, and leaves all of that generation's versions non-canonical.
+- After state becomes archived, all artifacts under `sdd/{change-name}/` are immutable unless an explicit reopen increments `archive_generation`, records `state: active`, `phase: reopened`, `reopened_at`, and `reopen_reason`, and clears current archive references. Older generation reports and versions remain immutable history and cannot finalize the reopened change or suppress fresh evidence.
+- Persist the archive report and state update before returning text.

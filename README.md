@@ -16,6 +16,8 @@ memory, codebase intelligence, and a structured skill system.
   resilience, and save nudges.
 - **Native GPT orchestrator stack** — one primary coordinator and three focused
   subagents, all configured for OpenAI OAuth without an authentication plugin.
+- **Engram-only SDD** — planning artifacts, state, verification, and archive
+  reports use deterministic `sdd/<change>/<artifact>` topic keys.
 
 ## Prerequisites
 
@@ -23,6 +25,12 @@ memory, codebase intelligence, and a structured skill system.
   install of engram and codegraph)
 - [Node.js](https://nodejs.org) (for codegraph)
 - A ChatGPT Plus or Pro account for OpenAI OAuth
+- An Engram release whose `engram capabilities --json` output declares
+  `features.atomic_topic_cas` version 1 or newer, with the exact inputs
+  `topic_key`/`expected_revision`, success fields `id`/`sync_id`/
+  `revision_count`, and `revision_conflict` error code. SDD initialization and
+  onboarding must stop rather than write the canonical spec manifest without
+  this contract.
 
 ## Install
 
@@ -31,7 +39,7 @@ git clone https://github.com/lestat998/ai-orchestrator-setup.git ~/ai-orchestrat
 ~/ai-orchestrator-setup/bin/bootstrap
 ```
 
-Then open `opencode`, run `/connect`, select OpenAI, and choose the ChatGPT
+Restart OpenCode after bootstrap, then run `/connect`, select OpenAI, and choose the ChatGPT
 Plus/Pro browser login. OpenCode handles this OAuth flow natively; do not install
 the `codex-auth` plugin. Credentials are stored outside the config folder and
 are never part of this repo.
@@ -94,6 +102,18 @@ git pull
 bin/bootstrap
 ```
 
+Bootstrap stages the configuration and checks `engram capabilities --json`
+before backing up or replacing the active OpenCode config. It fails without
+changing that config or its backups when the required `atomic_topic_cas`
+contract is absent or incomplete. Do not assume the current Homebrew stable
+formula provides this capability; install a confirmed capability-bearing
+Engram release first.
+
 This backs up your current config before overwriting. Your engram memory
 database is unaffected — it lives in engram's own data directory, not in
 the opencode config.
+
+Restart OpenCode after every bootstrap run so updated commands, skills, and the
+Engram plugin are loaded. In the verified OpenCode 1.17.15 installation,
+`OPENCODE_EXPERIMENTAL_CODE_MODE=1` is an optional experimental token-reduction
+switch; bootstrap does not enable or require it, and later versions may change it.

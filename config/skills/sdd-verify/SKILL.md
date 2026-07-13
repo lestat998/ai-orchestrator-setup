@@ -27,7 +27,7 @@ The orchestrator should provide structured status from `skills/_shared/sdd-statu
 - A spec scenario is compliant only when a covering test passed at runtime.
 - Compare specs first, design second, task completion third.
 - Do not fix issues; report them for the orchestrator/user.
-- Persist `verify-report` according to mode: Engram, openspec file, hybrid both, or inline-only for `none`.
+- Persist `verify-report` to Engram topic key `sdd/{change-name}/verify-report`.
 - If Strict TDD is active, load `strict-tdd-verify.md` from this skill directory; if inactive, never load it.
 - Return the Section D envelope from `../_shared/sdd-phase-common.md`.
 
@@ -50,7 +50,7 @@ The orchestrator should provide structured status from `skills/_shared/sdd-statu
 ## Execution Steps
 
 1. Load relevant skills via shared SDD Section A.
-2. Retrieve artifacts via shared Section B for the active persistence mode, or read the concrete `contextFiles` from structured status.
+2. Retrieve artifacts via shared Section B and read the observation IDs from structured status.
 3. Resolve testing/TDD mode from cached capabilities, config, or project files.
 4. Count completed and incomplete tasks. Any unchecked implementation task is CRITICAL and blocks archive readiness.
 5. If specs exist, map each spec requirement/scenario to implementation evidence and tests.

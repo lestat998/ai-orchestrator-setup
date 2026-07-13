@@ -7,15 +7,20 @@ cd "$REPO"
 
 OC="$HOME/.config/opencode"
 EXCLUDES=(--exclude node_modules --exclude package.json --exclude package-lock.json --exclude bun.lock)
+ENGRAM_BIN="${ENGRAM_BIN:-engram}"
 
 echo "== ai-orchestrator-setup bootstrap =="
 
 # 1. Install engram (persistent memory for the AI agent).
-if ! command -v engram >/dev/null 2>&1; then
+if ! command -v "$ENGRAM_BIN" >/dev/null 2>&1; then
+  if [ "$ENGRAM_BIN" != "engram" ]; then
+    echo "ERROR: ENGRAM_BIN is not executable: $ENGRAM_BIN" >&2
+    exit 1
+  fi
   echo "-> Installing engram..."
   brew install gentleman-programming/tap/engram
 else
-  echo "-> engram already installed: $(engram --version 2>/dev/null || echo 'ok')"
+  echo "-> engram already installed: $("$ENGRAM_BIN" --version 2>/dev/null || echo 'ok')"
 fi
 
 # 2. Install codegraph (codebase knowledge graph for structural queries).
@@ -31,21 +36,73 @@ if ! command -v opencode >/dev/null 2>&1; then
   echo "!! opencode not found. Install it with: brew install opencode"
 fi
 
-# 4. Back up any existing config, then install the orchestrator config.
+# 4. Stage config and verify the installed Engram capability contract before
+#    touching the active config. Homebrew stable is not assumed to provide it.
+STAGE="$(mktemp -d "${TMPDIR:-/tmp}/ai-orchestrator-bootstrap.XXXXXX")"
+trap 'rm -rf "$STAGE"' EXIT
+rsync -a --delete "${EXCLUDES[@]}" "$REPO/config/" "$STAGE/"
+
+echo "-> Checking Engram atomic topic CAS capability..."
+CAPABILITIES_JSON="$("$ENGRAM_BIN" capabilities --json 2>/dev/null)" || CAPABILITIES_JSON=""
+if ! CAPABILITIES_JSON="$CAPABILITIES_JSON" python3 <<'PY'
+import json
+import os
+import sys
+
+try:
+    capabilities = json.loads(os.environ["CAPABILITIES_JSON"])
+    feature = capabilities["features"]["atomic_topic_cas"]
+    if not isinstance(feature.get("version"), int) or feature["version"] < 1:
+        raise RuntimeError("features.atomic_topic_cas.version must be at least 1")
+    contracts = {
+        "input_fields": {"topic_key", "expected_revision"},
+        "success_fields": {"id", "sync_id", "revision_count"},
+        "error_codes": {"revision_conflict"},
+    }
+    for field, expected in contracts.items():
+        declared = feature.get(field)
+        if not isinstance(declared, list) or len(declared) != len(expected) or set(declared) != expected:
+            raise RuntimeError(f"features.atomic_topic_cas.{field} must declare exactly {sorted(expected)}")
+except Exception as error:
+    print(f"Engram capability preflight failed: {error}", file=sys.stderr)
+    sys.exit(1)
+PY
+then
+  echo "ERROR: bootstrap requires the Engram atomic_topic_cas capability contract (version >= 1)." >&2
+  echo "       The active OpenCode config was not changed; existing backups remain intact." >&2
+  echo "       Install a capability-bearing Engram release, then rerun bootstrap." >&2
+  exit 1
+fi
+
+# 5. Back up any existing config, then install the staged orchestrator config.
 if [ -d "$OC" ]; then
-  BACKUP="$HOME/.config/opencode.backup.$(date +%Y%m%d-%H%M%S)"
+  BACKUP_BASE="$HOME/.config/opencode.backup.$(date +%Y%m%d-%H%M%S)"
+  BACKUP="$BACKUP_BASE"
+  BACKUP_SUFFIX=0
+  while ! mkdir "$BACKUP" 2>/dev/null; do
+    if [ ! -e "$BACKUP" ]; then
+      echo "ERROR: could not reserve backup path: $BACKUP" >&2
+      exit 1
+    fi
+    BACKUP_SUFFIX=$((BACKUP_SUFFIX + 1))
+    BACKUP="$BACKUP_BASE.$BACKUP_SUFFIX"
+  done
   echo "-> Backing up existing config to $BACKUP..."
   rsync -a --exclude node_modules "$OC/" "$BACKUP/"
 fi
 mkdir -p "$OC"
 echo "-> Installing orchestrator config..."
-rsync -a --delete "${EXCLUDES[@]}" "$REPO/config/" "$OC/"
+rsync -a --delete "${EXCLUDES[@]}" "$STAGE/" "$OC/"
 
 echo
 echo "OK bootstrap complete."
-echo "   Next: open opencode and log into your model provider once"
+echo "   Restart OpenCode so it reloads the installed config and plugin."
+echo "   Then open opencode and log into your model provider once"
 echo "   (credentials are stored outside the config folder — never synced)."
 echo
 echo "   Optional: customize your persona in ~/.config/opencode/AGENTS.md"
 echo "   The persona section at the top is yours to edit. The protocols below it"
 echo "   (Engram, CodeGraph, Skill Loading) are the orchestrator infrastructure."
+echo
+echo "   Optional experimental token reduction (verified with OpenCode 1.17.15):"
+echo "   OPENCODE_EXPERIMENTAL_CODE_MODE=1 opencode"

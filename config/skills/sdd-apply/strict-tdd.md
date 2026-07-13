@@ -120,7 +120,6 @@ Detect the test runner from the cached testing capabilities:
 ```
 Read test command from:
 ├── Cached capabilities → test_runner.command (fastest — already detected)
-├── openspec/config.yaml → rules.apply.test_command (override)
 └── Fallback: detect from package.json/pyproject.toml/go.mod
 
 When executing tests during TDD:

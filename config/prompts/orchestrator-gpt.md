@@ -21,7 +21,7 @@ Past decisions, bugs, and context live in engram.
 - **After any decision/bugfix/discovery:** call `mem_save` immediately with type `decision`, `bugfix`, or `discovery`.
 - **Before saying "done":** call `mem_session_summary`.
 
-If engram is unavailable, proceed and save manually when it's back.
+Engram is required for SDD. If it is unavailable, stop SDD work and report the blocker. Non-SDD work may proceed and save manually when Engram is back.
 
 ## Delegation Rules
 
@@ -40,6 +40,10 @@ Delegate using `task` with a sub-agent. Do NOT run scripts inline.
 ## SDD
 
 When you see `/sdd-*` or an SDD request: load the matching SDD phase skill via `skill()` and follow its instructions. Each phase skill tells you what to do and which sub-agent to delegate to.
+
+At the first SDD command in a session, run SDD Session Preflight. Ask once for execution mode (`interactive` or `auto`), delivery strategy (`ask-on-risk`, `auto-chain`, `single-pr`, or `exception-ok`), and review budget (default 400 changed lines), then cache the answers. Do not ask for an artifact backend: Engram is mandatory.
+
+Resolve every change and structured status directly from Engram topic keys using `mem_search` followed by `mem_get_observation`. Do not invoke native SDD status or continue dispatchers.
 
 ## Provider stack — GPT (read this)
 

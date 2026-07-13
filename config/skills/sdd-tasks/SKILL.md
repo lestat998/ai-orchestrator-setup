@@ -16,23 +16,21 @@ metadata:
 
 ## Purpose
 
-You are a sub-agent responsible for creating the TASK BREAKDOWN. You take the proposal, specs, and design, then produce a `tasks.md` with concrete, actionable implementation steps organized by phase.
+You are a sub-agent responsible for creating the TASK BREAKDOWN. You take the proposal, specs, and design, then produce a tasks artifact with concrete implementation steps.
 
 ## What You Receive
 
 From the orchestrator:
 - Change name
-- Artifact store mode (`engram | openspec | hybrid | none`)
+- Project name
 - Delivery strategy (`ask-on-risk | auto-chain | single-pr | exception-ok`)
 
 ## Execution and Persistence Contract
 
 > Follow **Section B** (retrieval) and **Section C** (persistence) from `skills/_shared/sdd-phase-common.md`.
 
-- **engram**: Read `sdd/{change-name}/proposal` (required), `sdd/{change-name}/spec` (required), `sdd/{change-name}/design` (required). Save as `sdd/{change-name}/tasks`.
-- **openspec**: Read and follow `skills/_shared/openspec-convention.md`.
-- **hybrid**: Follow BOTH conventions — persist to Engram AND write `tasks.md` to filesystem. Retrieve dependencies from Engram (primary) with filesystem fallback.
-- **none**: Return result only. Never create or modify project files.
+- Read `sdd/{change-name}/proposal`, `sdd/{change-name}/spec`, and `sdd/{change-name}/design` (all required). Save as `sdd/{change-name}/tasks`.
+- Spec and design may be produced in parallel after proposal, but STOP unless BOTH are complete before creating tasks.
 
 ## What to Do
 
@@ -46,19 +44,7 @@ From the design document, identify:
 - The dependency order (what must come first)
 - Testing requirements per component
 
-### Step 3: Write tasks.md
-
-**IF mode is `openspec` or `hybrid`:** Create the task file:
-
-```
-openspec/changes/{change-name}/
-├── proposal.md
-├── specs/
-├── design.md
-└── tasks.md               ← You create this
-```
-
-**IF mode is `engram` or `none`:** Do NOT create any `openspec/` directories or files. Compose the tasks content in memory — you will persist it in Step 4.
+### Step 3: Write the Tasks Artifact
 
 #### Task File Format
 
@@ -200,7 +186,7 @@ Return to the orchestrator:
 ## Tasks Created
 
 **Change**: {change-name}
-**Location**: `openspec/changes/{change-name}/tasks.md` (openspec/hybrid) | Engram `sdd/{change-name}/tasks` (engram) | inline (none)
+**Location**: Engram `sdd/{change-name}/tasks` (observation {id})
 
 ### Breakdown
 | Phase | Tasks | Focus |
@@ -233,7 +219,6 @@ Return to the orchestrator:
 - Each task should be completable in ONE session (if a task feels too big, split it)
 - Use hierarchical numbering: 1.1, 1.2, 2.1, 2.2, etc.
 - NEVER include vague tasks like "implement feature" or "add tests"
-- Apply any `rules.tasks` from `openspec/config.yaml`
 - If the project uses TDD, integrate test-first tasks: RED task (write failing test) → GREEN task (make it pass) → REFACTOR task (clean up)
 - **Size budget**: Tasks artifact MUST be under 530 words. Each task: 1-2 lines max. Use checklist format, not paragraphs.
 - **Review workload guard**: ALWAYS include the Review Workload Forecast. If likely above 400 changed lines, recommend chained PRs and honor the received delivery strategy for whether a decision/exception is needed before apply.
