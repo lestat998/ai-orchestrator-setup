@@ -1,5 +1,81 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "openai": {
+      "options": {
+        "reasoningEffort": "medium",
+        "reasoningSummary": "auto",
+        "textVerbosity": "medium",
+        "include": [
+          "reasoning.encrypted_content"
+        ],
+        "store": false
+      }
+    }
+  },
+  "agent": {
+    "ai-orchestrator-gpt": {
+      "model": "openai/gpt-5.6-sol",
+      "description": "AI Orchestrator (GPT stack) - coordinates GPT sub-agents, never does work inline",
+      "mode": "primary",
+      "permission": {
+        "question": "allow",
+        "task": {
+          "*": "deny",
+          "general": "allow",
+          "readonly-reviewer-gpt": "allow",
+          "fix-executor-gpt": "allow",
+          "sdd-executor-gpt": "allow"
+        }
+      },
+      "prompt": "{file:./prompts/orchestrator-gpt.md}",
+      "tools": {
+        "bash": true,
+        "edit": true,
+        "question": true,
+        "read": true,
+        "task": true,
+        "write": true
+      }
+    },
+    "readonly-reviewer-gpt": {
+      "model": "openai/gpt-5.6-sol",
+      "description": "Generic read-only reviewer — handles R1-R4 review roles and judgment-day blind review",
+      "hidden": true,
+      "mode": "subagent",
+      "prompt": "You are a focused read-only reviewer. Your specific role rules are provided in the task prompt below. Do NOT modify any code — your job is ONLY to find problems and report findings with the severity and format requested. Do NOT delegate further.",
+      "tools": {
+        "bash": true,
+        "read": true
+      }
+    },
+    "fix-executor-gpt": {
+      "model": "openai/gpt-5.6-sol",
+      "description": "Generic surgical fix executor — applies confirmed fixes from reviews and judgment-day",
+      "hidden": true,
+      "mode": "subagent",
+      "prompt": "You are a surgical fix agent. Execute the fix instructions provided in the task prompt exactly. Do NOT delegate further. Fix ONLY the confirmed issues listed — do NOT refactor beyond what is strictly needed.",
+      "tools": {
+        "bash": true,
+        "edit": true,
+        "read": true,
+        "write": true
+      }
+    },
+    "sdd-executor-gpt": {
+      "model": "openai/gpt-5.6-sol",
+      "description": "Generic SDD executor — runs any SDD phase (explore, propose, spec, design, tasks, apply, verify, archive, init, onboard)",
+      "hidden": true,
+      "mode": "subagent",
+      "prompt": "You are an SDD phase executor. Do this phase's work yourself. Do NOT delegate, call task, or launch sub-agents. Read the SKILL.md file path provided in the task prompt and follow it exactly. The task prompt tells you which phase to run and provides all context.",
+      "tools": {
+        "bash": true,
+        "edit": true,
+        "read": true,
+        "write": true
+      }
+    }
+  },
   "mcp": {
     "engram": {
       "command": [
