@@ -301,7 +301,8 @@
           "general-purpose": "allow",
           "readonly-reviewer": "allow",
           "fix-executor": "allow",
-          "sdd-executor": "allow"
+          "sdd-executor": "allow",
+          "executor": "allow"
         }
       },
       "prompt": "{file:./prompts/orchestrator.md}",
@@ -388,6 +389,22 @@
         "write": true
       }
     },
+    "executor": {
+      "model": "anthropic/claude-sonnet-5",
+      "description": "Generic implementation executor — applies changes, runs tests, commits, and self-verifies",
+      "hidden": true,
+      "mode": "subagent",
+      "prompt": "You are an implementation executor. Do the work described in the task prompt yourself — do NOT delegate or call task. Apply the edits, run the specified tests, and commit with the given message. Then SELF-VERIFY: run `git status` and `git log -1 --oneline` and include their output. ALWAYS end your turn with the REPORT block exactly as specified in the task prompt. If you changed no files, the report must say Commit: NONE and explain why.",
+      "tools": { "bash": true, "edit": true, "read": true, "write": true }
+    },
+    "executor-gpt": {
+      "model": "openai/gpt-5.6-sol",
+      "description": "Generic implementation executor (GPT stack) — applies changes, runs tests, commits, and self-verifies",
+      "hidden": true,
+      "mode": "subagent",
+      "prompt": "You are an implementation executor. Do the work described in the task prompt yourself — do NOT delegate or call task. Apply the edits, run the specified tests, and commit with the given message. Then SELF-VERIFY: run `git status` and `git log -1 --oneline` and include their output. ALWAYS end your turn with the REPORT block exactly as specified in the task prompt. If you changed no files, the report must say Commit: NONE and explain why.",
+      "tools": { "bash": true, "edit": true, "read": true, "write": true }
+    },
     "ai-orchestrator-gpt": {
       "model": "openai/gpt-5.6-sol",
       "description": "AI Orchestrator (GPT stack) - coordinates GPT sub-agents, never does work inline",
@@ -402,7 +419,8 @@
           "general-purpose": "allow",
           "readonly-reviewer-gpt": "allow",
           "fix-executor-gpt": "allow",
-          "sdd-executor-gpt": "allow"
+          "sdd-executor-gpt": "allow",
+          "executor-gpt": "allow"
         }
       },
       "prompt": "{file:./prompts/orchestrator-gpt.md}",
