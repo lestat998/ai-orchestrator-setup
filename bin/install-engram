@@ -2,7 +2,7 @@
 set -euo pipefail
 
 RELEASE_REPO="${ENGRAM_RELEASE_REPO:-lestat998/engram}"
-RELEASE_TAG="${ENGRAM_RELEASE_TAG:-v1.19.1-cas.1}"
+RELEASE_TAG="${ENGRAM_RELEASE_TAG:-v1.19.1-cas.2}"
 
 has_atomic_topic_cas() {
   local binary="$1"
@@ -59,11 +59,11 @@ done
 case "$(uname -m)" in
   arm64)
     release_arch="arm64"
-    expected_checksum="c66b9563a36bdeb901ddb3133036eb20f3e2366dd9b1a9693130c585e690b55c"
+    expected_checksum="849e9f3e2c7d8126ee817f3af2792ce38eeb2324b6d4e0a59af03905bee15f3e"
     ;;
   x86_64)
     release_arch="amd64"
-    expected_checksum="7c98b8297b07be624c4443c7c4afcef09f96f5eb8dbe5516fdaf788bb5966c63"
+    expected_checksum="9d12c563526891ea49b86a05e354d714343ac9baad36363a59fce02b644f6198"
     ;;
   *)
     echo "ERROR: unsupported macOS architecture: $(uname -m)" >&2
