@@ -12,7 +12,8 @@ metadata:
 
 > **Phase header**: See `skills/_shared/sdd-phase-header.md` for the shared
 > Orchestrator Gate, Executor Override, and Language Domain Contract.
-> Phase: `onboard` · Sub-agent: `sdd-executor`.
+> Phase: `onboard` · Sub-agent: `sdd-executor`. The primary orchestrator must
+> delegate this skill and must not run it inline, including for direct onboarding requests.
 
 ## Purpose
 

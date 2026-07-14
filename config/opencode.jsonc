@@ -19,6 +19,8 @@
       "description": "AI Orchestrator (GPT stack) - coordinates GPT sub-agents, never does work inline",
       "mode": "primary",
       "permission": {
+        "bash": "deny",
+        "edit": "deny",
         "question": "allow",
         "task": {
           "*": "deny",
@@ -30,12 +32,12 @@
       },
       "prompt": "{file:./prompts/orchestrator-gpt.md}",
       "tools": {
-        "bash": true,
-        "edit": true,
+        "bash": false,
+        "edit": false,
         "question": true,
         "read": true,
         "task": true,
-        "write": true
+        "write": false
       }
     },
     "readonly-reviewer-gpt": {

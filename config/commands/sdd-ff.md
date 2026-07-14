@@ -23,7 +23,7 @@ Planning phases:
 
 CONTEXT:
 
-- Working directory: before doing anything else, run `git rev-parse --show-toplevel 2>/dev/null || pwd` with your bash tool and use the returned path as the authoritative workspace. In OpenCode Desktop (Electron) the parse-time interpolation resolves to the app data directory, not the project.
+- Working directory: delegate repository-root detection to the allowed generic executor; have it run `git rev-parse --show-toplevel 2>/dev/null || pwd` and use the returned path as the authoritative workspace. The primary orchestrator must not run Bash. In OpenCode Desktop (Electron) the parse-time interpolation resolves to the app data directory, not the project.
 - Current project: before any memory operation, call `mem_current_project` and use its returned `project` identity for every Engram operation and executor launch. Never use the workspace basename as the Engram project; keep the workspace path separate for `actionContext`.
 - Change name: $ARGUMENTS
 - Execution mode: ask/cache per orchestrator
@@ -31,6 +31,6 @@ CONTEXT:
 - Review budget: ask/cache per orchestrator
 
 ENGRAM NOTE:
-Launch `sdd-executor-gpt` for each phase with its exact installed path: `skills/sdd-propose/SKILL.md`, `skills/sdd-spec/SKILL.md`, `skills/sdd-design/SKILL.md`, and `skills/sdd-tasks/SKILL.md`. Executors persist `sdd/$ARGUMENTS/{type}` where type is proposal, spec, design, or tasks; the orchestrator persists active DAG state after each successful transition.
+Launch the allowed generic `sdd-executor` for each phase with its exact installed path: `skills/sdd-propose/SKILL.md`, `skills/sdd-spec/SKILL.md`, `skills/sdd-design/SKILL.md`, and `skills/sdd-tasks/SKILL.md`. Executors persist `sdd/$ARGUMENTS/{type}` where type is proposal, spec, design, or tasks; the orchestrator persists active DAG state after each successful transition.
 
 Read the orchestrator instructions to coordinate this workflow. Do NOT execute phase work inline — delegate to sub-agents.

@@ -9,7 +9,7 @@ HARD GATE:
 SDD Session Preflight must include execution mode, chained PR strategy, and review budget. If missing, ask the orchestrator preflight prompt and STOP. Confirm Engram is available.
 
 CONTEXT:
-- Resolve the authoritative workspace with `git rev-parse --show-toplevel 2>/dev/null || pwd`.
+- Delegate authoritative workspace resolution to the allowed generic read-only reviewer; have it run `git rev-parse --show-toplevel 2>/dev/null || pwd`. The primary orchestrator must not run Bash.
 - Before any memory operation, call `mem_current_project`; use its returned `project` identity for every Engram operation. Never derive the Engram project from the workspace basename. Keep the workspace path separate as `actionContext.workspaceRoot`.
 - Change name: $ARGUMENTS
 
@@ -19,4 +19,4 @@ TASK:
 3. If no name is supplied, select only when exactly one active change exists; otherwise ask and stop.
 4. Return the complete `ai-orchestrator.sdd-status` shape with `artifactStore: engram`, topic keys, observation IDs, task progress, dependency states, `nextRecommended`, blockers, and action context.
 
-Do not create, update, or delete observations. Route only by structured dependency state, never preview text.
+Do not create, update, or delete observations. Report `nextRecommended` and structured dependency state as planning information only; never launch the next phase.
