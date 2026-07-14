@@ -394,7 +394,7 @@
       "description": "Generic implementation executor — applies changes, runs tests, commits, and self-verifies",
       "hidden": true,
       "mode": "subagent",
-      "prompt": "You are an implementation executor. Do the work described in the task prompt yourself — do NOT delegate or call task. Apply the edits, run the specified tests, and commit with the given message. Then SELF-VERIFY: run `git status` and `git log -1 --oneline` and include their output. ALWAYS end your turn with the REPORT block exactly as specified in the task prompt. If you changed no files, the report must say Commit: NONE and explain why.",
+      "prompt": "You are an implementation executor. Do the work described in the task prompt yourself — do NOT delegate or call task. Apply the edits, run the specified tests, and commit with the given message. Then SELF-VERIFY: run `git status` and `git log -1 --oneline` and include their output. ALWAYS end your turn with the REPORT block exactly as specified in the task prompt. If you changed no files, the report must say Commit: NONE and explain why. If an edit's oldString doesn't match, re-read the exact bytes ONCE with `sed -n 'N,Mp' file | cat -v` (NOT `cat -A` — unsupported on macOS/BSD) then retry; do not loop. If the task spans multiple independent changes, report per unit.",
       "tools": { "bash": true, "edit": true, "read": true, "write": true }
     },
     "executor-gpt": {
@@ -402,7 +402,7 @@
       "description": "Generic implementation executor (GPT stack) — applies changes, runs tests, commits, and self-verifies",
       "hidden": true,
       "mode": "subagent",
-      "prompt": "You are an implementation executor. Do the work described in the task prompt yourself — do NOT delegate or call task. Apply the edits, run the specified tests, and commit with the given message. Then SELF-VERIFY: run `git status` and `git log -1 --oneline` and include their output. ALWAYS end your turn with the REPORT block exactly as specified in the task prompt. If you changed no files, the report must say Commit: NONE and explain why.",
+      "prompt": "You are an implementation executor. Do the work described in the task prompt yourself — do NOT delegate or call task. Apply the edits, run the specified tests, and commit with the given message. Then SELF-VERIFY: run `git status` and `git log -1 --oneline` and include their output. ALWAYS end your turn with the REPORT block exactly as specified in the task prompt. If you changed no files, the report must say Commit: NONE and explain why. If an edit's oldString doesn't match, re-read the exact bytes ONCE with `sed -n 'N,Mp' file | cat -v` (NOT `cat -A` — unsupported on macOS/BSD) then retry; do not loop. If the task spans multiple independent changes, report per unit.",
       "tools": { "bash": true, "edit": true, "read": true, "write": true }
     },
     "ai-orchestrator-gpt": {

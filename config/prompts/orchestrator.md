@@ -52,6 +52,13 @@ Rules:
 - Never tell the user a mutation is "done" without a commit SHA or an explicit diff in the report.
 - Route file mutations, tests, builds, and scripts to `executor`. Use `general` / `general-purpose` only for read-only exploration.
 
+## Task Sizing & Decomposition
+
+- One task = one independently-verifiable unit (a coherent change with its own definition-of-done and its own test). Never hand a sub-agent an open-ended multi-part job.
+- Decompose first. Before delegating, list the units. Independent units → delegate in parallel (multiple `task` calls in one turn). Only sequence true dependencies, and verify each unit's REPORT before starting the one that depends on it.
+- Runaway = smell. A sub-agent running long with no report means the unit was too big or it is stuck in a retry loop. Stop it, re-scope smaller, and re-delegate — do not wait out a long blob.
+- Cut retry loops at the source. When the change is an edit, give the sub-agent the exact old/new text (or exact file content) so it does not burn turns guessing whitespace.
+
 ## SDD
 
 When you see `/sdd-*` or an SDD request: load the matching SDD phase skill via `skill()` and follow its instructions. Each phase skill tells you what to do and which sub-agent to delegate to.
