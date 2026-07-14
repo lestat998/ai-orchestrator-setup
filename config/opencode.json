@@ -3,11 +3,7 @@
   "plugin": [
     "opencode-with-claude"
   ],
-  "tools": {
-    "clickup*": false,
-    "slack*": false,
-    "sentry*": false
-  },
+  "tools": {},
   "provider": {
     "anthropic": {
       "options": {
@@ -421,40 +417,10 @@
     }
   },
   "mcp": {
-    "slack": {
-      "enabled": true,
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "slack-mcp-server@latest",
-        "--transport",
-        "stdio"
-      ],
-      "env": {
-        "SLACK_MCP_XOXC_TOKEN": "{env:SLACK_MCP_XOXC_TOKEN}",
-        "SLACK_MCP_XOXD_TOKEN": "{env:SLACK_MCP_XOXD_TOKEN}"
-      }
-    },
-    "sentry": {
-      "enabled": true,
-      "type": "remote",
-      "url": "https://mcp.sentry.dev/mcp"
-    },
     "context7": {
       "enabled": true,
       "type": "remote",
       "url": "https://mcp.context7.com/mcp"
-    },
-    "clickup": {
-      "enabled": true,
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "mcp-remote",
-        "https://mcp.clickup.com/mcp"
-      ]
     },
     "engram": {
       "command": [
