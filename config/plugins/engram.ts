@@ -72,12 +72,6 @@ async function isEngramRunning(): Promise<boolean> {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function extractProjectName(directory: string): string {
-  const normalize = (name: string): string => name.trim().toLowerCase()
-
-  // Match Engram's explicit project override before auto-detection.
-  const override = process.env.ENGRAM_PROJECT
-  if (override?.trim()) return normalize(override)
-
   // Try git remote origin URL
   try {
     const result = Bun.spawnSync(["git", "-C", directory, "remote", "get-url", "origin"])
@@ -85,7 +79,7 @@ function extractProjectName(directory: string): string {
       const url = result.stdout?.toString().trim()
       if (url) {
         const name = url.replace(/\.git$/, "").split(/[/:]/).pop()
-        if (name) return normalize(name)
+        if (name) return name
       }
     }
   } catch {}
@@ -95,12 +89,12 @@ function extractProjectName(directory: string): string {
     const result = Bun.spawnSync(["git", "-C", directory, "rev-parse", "--show-toplevel"])
     if (result.exitCode === 0) {
       const root = result.stdout?.toString().trim()
-      if (root) return normalize(root.split("/").pop() ?? "unknown")
+      if (root) return root.split("/").pop() ?? "unknown"
     }
   } catch {}
 
   // Final fallback: cwd basename
-  return normalize(directory.split("/").pop() ?? "unknown")
+  return directory.split("/").pop() ?? "unknown"
 }
 
 function truncate(str: string, max: number): string {
@@ -322,8 +316,10 @@ export const Engram: Plugin = async (ctx) => {
       }
     },
 
+    // ─── Save nudge ─────────────────────────────────────────────
+    // AGENTS.md owns the durable memory policy. This hook adds only a debounced
+    // reminder when the session has gone a long time without saving.
     "experimental.chat.system.transform": async (input, output) => {
-      // ── Save nudge ──────────────────────────────────────────────────────────
       // If it has been a long time since the last mem_save, append a reminder
       // to the system prompt so the agent notices. All fetches are fire-and-
       // forget with short timeouts — any failure silently skips the nudge.

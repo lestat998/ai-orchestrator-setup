@@ -4,7 +4,7 @@ Boilerplate identical across all SDD phase skills. Sub-agents MUST load this alo
 
 Executor boundary: every SDD phase agent is an EXECUTOR, not an orchestrator. Do the phase work yourself. Do NOT launch sub-agents, do NOT call `delegate`/`task`, and do NOT bounce work back unless the phase skill explicitly says to stop and report a blocker.
 
-Project boundary: before any `mem_*` operation, call `mem_current_project` and use its returned `project` identity in every memory operation. Do not use a workspace basename. Keep the workspace root separate for `actionContext` and file operations.
+Project identity: use the exact Engram `project` value supplied by the orchestrator. If it is absent, call `mem_current_project` and use its exact returned `project` value. Do not derive project identity from a filesystem path; keep the workspace path only in `actionContext`.
 
 ## A. Skill Loading
 
@@ -21,6 +21,8 @@ NOTE: the preferred path is (1) — exact skill paths selected by the orchestrat
 ## B. Artifact Retrieval
 
 **CRITICAL**: `mem_search` returns 300-char PREVIEWS, not full content. You MUST call `mem_get_observation(id)` for EVERY artifact. **Skipping this produces wrong output.**
+
+Retrieve `sdd/{change-name}/state` and every `sdd/{change-name}/archive-reports/*` observation before mutating a change. If state says `archived`, or a legacy change has only legacy `sdd/{change-name}/archive-report`, STOP without updates unless the prompt explicitly authorizes reopening. Finalization recovery is allowed only to archive when state says `archiving`, frozen artifact/version lineage matches, and every affected manifest ref equals or descends from that generation's immutable version. Reuse an exact matching generation report, or create the absent deterministic generation report from the validated immutable IDs with `expected_revision: 0` before writing terminal state. On report `revision_conflict`, retrieve the winner and continue only when its exact generation/artifact/version lineage is identical; a mismatch blocks. Active state plus a report never qualifies. An active state with `rebase_required: true` routes to `sdd-spec`, which must replace the stale spec artifact before later phases rerun. On explicit reopen, increment `archive_generation`, update state to active with `reopened: true`, record the reason/time, clear current generation report/version/manifest-result pointers, and preserve old pointers only as history; do not modify old reports or versions.
 
 **Run all searches in parallel** — do NOT search sequentially.
 
@@ -54,7 +56,7 @@ mem_save(
 `topic_key` enables upserts — saving again updates, not duplicates.
 `capture_prompt: false` is mandatory for SDD artifacts because they are automated pipeline outputs, not human/proactive memory saves. Set it when the Engram tool schema supports it; if an older schema rejects or does not expose the field, omit it rather than failing.
 
-After every successful non-archive phase, the orchestrator MUST create or upsert `sdd/{change-name}/state` with `state: active`, the completed phase, and current DAG progress (artifact status plus observation ID for every completed phase). It MUST retrieve and preserve the existing full state, including `archive_generation` and `last_archived_generation`, before updating it. A phase is not successfully transitioned until both its artifact and this active state are persisted. Archive alone owns the generation-scoped `archiving` transition and terminal `archived` update defined by `sdd-archive`.
+After a phase artifact is persisted successfully, the orchestrator MUST create or upsert `sdd/{change-name}/state` as `active` with that artifact's observation ID and the complete current DAG progress before reporting the transition as successful. Preserve existing archive generation/history and the current `reopened` value on every non-archive state update; an archive conflict has already consumed a reopened reservation by setting that value to `false`, and no later phase may restore it. When spec succeeds from `rebase_required: true`, clear that flag while preserving the aborted/conflicted generation history and `reopened: false`; the new spec observation supersedes the stale baseline for routing. Parallel spec/design branches return their artifact IDs first; the orchestrator writes state once after both complete. Archive alone transitions state to `archiving` and then finalizes the matching generation as `archived`.
 
 ## D. Return Envelope
 
@@ -75,7 +77,7 @@ Example:
 ```markdown
 **Status**: success
 **Summary**: Proposal created for `{change-name}`. Defined scope, approach, and rollback plan.
-**Artifacts**: Engram `sdd/{change-name}/proposal` (observation {id})
+**Artifacts**: Engram `sdd/{change-name}/proposal` (observation #{id})
 **Next**: sdd-spec or sdd-design
 **Risks**: None
 **Skill Resolution**: paths-injected — 3 skills (react-19, typescript, tailwind-4)

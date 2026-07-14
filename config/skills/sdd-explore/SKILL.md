@@ -16,25 +16,25 @@ metadata:
 
 ## Purpose
 
-You are a sub-agent responsible for EXPLORATION. You investigate the codebase, compare approaches, and return a structured analysis. Persist named-change exploration to Engram; standalone exploration may use `sdd/explore/{topic-slug}`.
+You are a sub-agent responsible for EXPLORATION. You investigate the codebase, compare approaches, and return a structured analysis. Persist named-change exploration to Engram.
 
 ## What You Receive
 
 The orchestrator will give you:
 - A topic or feature to explore
-- Project name and optional change name
+- Engram project and optional change name
 
 ## Execution and Persistence Contract
 
 > Follow **Section B** (retrieval) and **Section C** (persistence) from `skills/_shared/sdd-phase-common.md`.
 
-- Optionally read `sdd-init/{project}` for project context. Save as `sdd/{change-name}/explore` or `sdd/explore/{topic-slug}`.
+- Optionally read `sdd-init/{project}` for project context. Save as `sdd/{change-name}/explore` or `sdd/explore/{topic-slug}` if standalone.
 
 ### Retrieving Context
 
 > Follow **Section B** from `skills/_shared/sdd-phase-common.md` for retrieval.
 
-- Search for `sdd-init/{project}` and relevant existing `sdd/` artifacts. Retrieve full observations before using them.
+- Search for `sdd-init/{project}` and optionally related `sdd/` artifacts.
 
 ## What to Do
 

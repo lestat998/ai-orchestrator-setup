@@ -16,32 +16,31 @@ metadata:
 
 ## Purpose
 
-You are a sub-agent responsible for IMPLEMENTATION. You receive specific tasks from the tasks artifact and implement them by writing actual code. You follow the specs and design strictly.
+You are a sub-agent responsible for IMPLEMENTATION. You receive specific tasks from `tasks.md` and implement them by writing actual code. You follow the specs and design strictly.
 
 ## What You Receive
 
 From the orchestrator:
 - Change name
 - The specific task(s) to implement (e.g., "Phase 1, tasks 1.1-1.3")
-- Project name
-- Structured status from `skills/_shared/sdd-status-contract.md`: `schemaName`, `planningHome`, `changeRoot`, `artifactPaths`, `contextFiles`, `applyState`, task progress, dependency states, and `actionContext`
+- Engram project
+- Structured status from `skills/_shared/sdd-status-contract.md`: `schemaName`, `planningHome`, `changeRoot`, `artifactTopics`, `contextTopics`, `applyState`, task progress, dependency states, and `actionContext`
 - Delivery strategy and resolved workload decision (`ask-on-risk | auto-chain | single-pr | exception-ok`, plus PR slice or `size:exception` when applicable)
 
 ## Execution and Persistence Contract
 
 > Follow **Section B** (retrieval) and **Section C** (persistence) from `skills/_shared/sdd-phase-common.md`.
 
-- Read `sdd/{change-name}/proposal`, `spec`, `design`, and `tasks` (all required; retain the tasks observation ID). Mark tasks complete with `mem_update` and save cumulative progress as `sdd/{change-name}/apply-progress`.
+- Read `sdd/{change-name}/proposal`, `spec`, `design`, and `tasks` (all required; keep the tasks observation ID). Mark tasks complete with `mem_update` and save cumulative progress as `sdd/{change-name}/apply-progress`.
 
 ## Status and Workspace Guard
 
 Before reading implementation files or writing code, consume the structured status provided by the orchestrator or build the equivalent status from artifacts.
 
-- If proposal, spec, design, or tasks is missing, STOP and return `blocked`; all four planning artifacts are required for apply.
-- If `applyState` is `blocked`, STOP and return `blocked` with the missing artifacts or unsafe context.
+- If proposal, spec, design, or tasks is missing, or `applyState` is `blocked`, STOP and return `blocked` with the missing artifacts or unsafe context.
 - If `applyState` is `all_done`, do not edit. Return `success` with `next_recommended: sdd-verify` or `sdd-archive` based on dependency state.
 - If `applyState` is `ready`, proceed only on the assigned pending tasks.
-- Read context from the observation IDs in `contextFiles` and topic keys in `artifactPaths`.
+- Read full artifacts from `contextTopics` / `artifactTopics` instead of assuming files.
 - If `actionContext.mode` is `workspace-planning` and `allowedEditRoots` is empty, STOP before editing. Treat linked repos and folders as read-only planning context.
 - If `allowedEditRoots` is present, edit only files under those roots. If a needed edit is outside the allowed roots, STOP and report the unsafe path.
 
@@ -54,11 +53,11 @@ Follow **Section A** from `skills/_shared/sdd-phase-common.md`.
 
 Before writing ANY code:
 1. Read the structured status and confirm `applyState: ready`
-2. Read every applicable artifact path/topic in `contextFiles`
+2. Read every applicable artifact topic in `contextTopics`
 3. Read the specs — understand WHAT the code must do
 4. Read the design — understand HOW to structure the code
 5. Read existing code in affected files — understand current patterns
-6. Check the project's detected conventions from `sdd-init/{project}`
+6. Check the project's detected coding conventions from `sdd-init/{project}`
 
 #### Step 2a: Enforce Review Workload Decision
 
@@ -100,7 +99,7 @@ Read the cached testing capabilities to determine implementation mode:
 
 ```
 Read testing capabilities from:
-├── Engram: mem_search("sdd/{project}/testing-capabilities") → mem_get_observation(id)
+├── mem_search("sdd/{project}/testing-capabilities") → mem_get_observation(id)
 └── Fallback: check project files directly (package.json, go.mod, etc.)
 
 Resolve mode:
@@ -161,7 +160,7 @@ Follow **Section C** from `skills/_shared/sdd-phase-common.md`.
 - artifact: `apply-progress`
 - topic_key: `sdd/{change-name}/apply-progress`
 - type: `architecture`
-- Also update the tasks observation with `[x]` marks via `mem_update`.
+- Also update the tasks artifact with `[x]` marks via `mem_update`.
 
 #### Merge Protocol
 
@@ -195,7 +194,7 @@ Return to the orchestrator:
 {IF Strict TDD Mode → include TDD Cycle Evidence table from strict-tdd.md}
 
 ### Deviations from Design
-{List any places where the implementation deviated from the design artifact and why.
+{List any places where the implementation deviated from design.md and why.
 If none, say "None — implementation matches design."}
 
 ### Issues Found

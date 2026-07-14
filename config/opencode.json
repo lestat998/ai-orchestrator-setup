@@ -1,0 +1,507 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": [
+    "opencode-with-claude"
+  ],
+  "tools": {
+    "clickup*": false,
+    "slack*": false,
+    "sentry*": false
+  },
+  "provider": {
+    "anthropic": {
+      "options": {
+        "baseURL": "http://127.0.0.1:3456",
+        "apiKey": "dummy"
+      }
+    },
+    "openai": {
+      "options": {
+        "reasoningEffort": "medium",
+        "reasoningSummary": "auto",
+        "textVerbosity": "medium",
+        "include": [
+          "reasoning.encrypted_content"
+        ],
+        "store": false
+      },
+      "models": {
+        "gpt-5.6-sol": {
+          "name": "GPT 5.6 Sol (OAuth)",
+          "limit": {
+            "context": 272000,
+            "output": 128000
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": {
+            "none": {
+              "reasoningEffort": "none",
+              "reasoningSummary": "auto",
+              "textVerbosity": "medium"
+            },
+            "low": {
+              "reasoningEffort": "low",
+              "reasoningSummary": "auto",
+              "textVerbosity": "medium"
+            },
+            "medium": {
+              "reasoningEffort": "medium",
+              "reasoningSummary": "auto",
+              "textVerbosity": "medium"
+            },
+            "high": {
+              "reasoningEffort": "high",
+              "reasoningSummary": "detailed",
+              "textVerbosity": "medium"
+            },
+            "xhigh": {
+              "reasoningEffort": "xhigh",
+              "reasoningSummary": "detailed",
+              "textVerbosity": "medium"
+            }
+          }
+        },
+        "gpt-5.2": {
+          "name": "GPT 5.2 (OAuth)",
+          "limit": {
+            "context": 272000,
+            "output": 128000
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": {
+            "none": {
+              "reasoningEffort": "none",
+              "reasoningSummary": "auto",
+              "textVerbosity": "medium"
+            },
+            "low": {
+              "reasoningEffort": "low",
+              "reasoningSummary": "auto",
+              "textVerbosity": "medium"
+            },
+            "medium": {
+              "reasoningEffort": "medium",
+              "reasoningSummary": "auto",
+              "textVerbosity": "medium"
+            },
+            "high": {
+              "reasoningEffort": "high",
+              "reasoningSummary": "detailed",
+              "textVerbosity": "medium"
+            },
+            "xhigh": {
+              "reasoningEffort": "xhigh",
+              "reasoningSummary": "detailed",
+              "textVerbosity": "medium"
+            }
+          }
+        },
+        "gpt-5.2-codex": {
+          "name": "GPT 5.2 Codex (OAuth)",
+          "limit": {
+            "context": 272000,
+            "output": 128000
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": {
+            "low": {
+              "reasoningEffort": "low",
+              "reasoningSummary": "auto",
+              "textVerbosity": "medium"
+            },
+            "medium": {
+              "reasoningEffort": "medium",
+              "reasoningSummary": "auto",
+              "textVerbosity": "medium"
+            },
+            "high": {
+              "reasoningEffort": "high",
+              "reasoningSummary": "detailed",
+              "textVerbosity": "medium"
+            },
+            "xhigh": {
+              "reasoningEffort": "xhigh",
+              "reasoningSummary": "detailed",
+              "textVerbosity": "medium"
+            }
+          }
+        },
+        "gpt-5.1-codex-max": {
+          "name": "GPT 5.1 Codex Max (OAuth)",
+          "limit": {
+            "context": 272000,
+            "output": 128000
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": {
+            "low": {
+              "reasoningEffort": "low",
+              "reasoningSummary": "detailed",
+              "textVerbosity": "medium"
+            },
+            "medium": {
+              "reasoningEffort": "medium",
+              "reasoningSummary": "detailed",
+              "textVerbosity": "medium"
+            },
+            "high": {
+              "reasoningEffort": "high",
+              "reasoningSummary": "detailed",
+              "textVerbosity": "medium"
+            },
+            "xhigh": {
+              "reasoningEffort": "xhigh",
+              "reasoningSummary": "detailed",
+              "textVerbosity": "medium"
+            }
+          }
+        },
+        "gpt-5.1-codex": {
+          "name": "GPT 5.1 Codex (OAuth)",
+          "limit": {
+            "context": 272000,
+            "output": 128000
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": {
+            "low": {
+              "reasoningEffort": "low",
+              "reasoningSummary": "auto",
+              "textVerbosity": "medium"
+            },
+            "medium": {
+              "reasoningEffort": "medium",
+              "reasoningSummary": "auto",
+              "textVerbosity": "medium"
+            },
+            "high": {
+              "reasoningEffort": "high",
+              "reasoningSummary": "detailed",
+              "textVerbosity": "medium"
+            }
+          }
+        },
+        "gpt-5.1-codex-mini": {
+          "name": "GPT 5.1 Codex Mini (OAuth)",
+          "limit": {
+            "context": 272000,
+            "output": 128000
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": {
+            "medium": {
+              "reasoningEffort": "medium",
+              "reasoningSummary": "auto",
+              "textVerbosity": "medium"
+            },
+            "high": {
+              "reasoningEffort": "high",
+              "reasoningSummary": "detailed",
+              "textVerbosity": "medium"
+            }
+          }
+        },
+        "gpt-5.1": {
+          "name": "GPT 5.1 (OAuth)",
+          "limit": {
+            "context": 272000,
+            "output": 128000
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": {
+            "none": {
+              "reasoningEffort": "none",
+              "reasoningSummary": "auto",
+              "textVerbosity": "medium"
+            },
+            "low": {
+              "reasoningEffort": "low",
+              "reasoningSummary": "auto",
+              "textVerbosity": "low"
+            },
+            "medium": {
+              "reasoningEffort": "medium",
+              "reasoningSummary": "auto",
+              "textVerbosity": "medium"
+            },
+            "high": {
+              "reasoningEffort": "high",
+              "reasoningSummary": "detailed",
+              "textVerbosity": "high"
+            }
+          }
+        }
+      }
+    }
+  },
+  "agent": {
+    "ai-orchestrator": {
+      "model": "anthropic/claude-opus-4-8",
+      "description": "AI Orchestrator SDD Orchestrator - coordinates sub-agents, never does work inline",
+      "mode": "primary",
+      "permission": {
+        "bash": "deny",
+        "edit": "deny",
+        "question": "allow",
+        "task": {
+          "*": "deny",
+          "general": "allow",
+          "general-purpose": "allow",
+          "readonly-reviewer": "allow",
+          "fix-executor": "allow",
+          "sdd-executor": "allow"
+        }
+      },
+      "prompt": "{file:./prompts/orchestrator.md}",
+      "tools": {
+        "bash": false,
+        "edit": false,
+        "question": true,
+        "read": true,
+        "task": true,
+        "write": false
+      }
+    },
+    "readonly-reviewer": {
+      "model": "anthropic/claude-opus-4-7",
+      "description": "Generic read-only reviewer — handles R1-R4 review roles and judgment-day blind review",
+      "hidden": true,
+      "mode": "subagent",
+      "prompt": "You are a focused read-only reviewer. Your specific role rules are provided in the task prompt below. Do NOT modify any code — your job is ONLY to find problems and report findings with the severity and format requested. Do NOT delegate further.",
+      "tools": {
+        "bash": true,
+        "read": true
+      }
+    },
+    "fix-executor": {
+      "model": "anthropic/claude-sonnet-5",
+      "description": "Generic surgical fix executor — applies confirmed fixes from reviews and judgment-day",
+      "hidden": true,
+      "mode": "subagent",
+      "prompt": "You are a surgical fix agent. Execute the fix instructions provided in the task prompt exactly. Do NOT delegate further. Fix ONLY the confirmed issues listed — do NOT refactor beyond what is strictly needed.",
+      "tools": {
+        "bash": true,
+        "edit": true,
+        "read": true,
+        "write": true
+      }
+    },
+    "sdd-executor": {
+      "model": "anthropic/claude-sonnet-5",
+      "description": "Generic SDD executor — runs any SDD phase (explore, propose, spec, design, tasks, apply, verify, archive, init, onboard)",
+      "hidden": true,
+      "mode": "subagent",
+      "prompt": "You are an SDD phase executor. Do this phase's work yourself. Do NOT delegate, call task, or launch sub-agents. Read the SKILL.md file path provided in the task prompt and follow it exactly. The task prompt tells you which phase to run and provides all context.",
+      "tools": {
+        "bash": true,
+        "edit": true,
+        "read": true,
+        "write": true
+      }
+    },
+    "readonly-reviewer-gpt": {
+      "model": "openai/gpt-5.6-sol",
+      "description": "Generic read-only reviewer — handles R1-R4 review roles and judgment-day blind review",
+      "hidden": true,
+      "mode": "subagent",
+      "prompt": "You are a focused read-only reviewer. Your specific role rules are provided in the task prompt below. Do NOT modify any code — your job is ONLY to find problems and report findings with the severity and format requested. Do NOT delegate further.",
+      "tools": {
+        "bash": true,
+        "read": true
+      }
+    },
+    "fix-executor-gpt": {
+      "model": "openai/gpt-5.6-sol",
+      "description": "Generic surgical fix executor — applies confirmed fixes from reviews and judgment-day",
+      "hidden": true,
+      "mode": "subagent",
+      "prompt": "You are a surgical fix agent. Execute the fix instructions provided in the task prompt exactly. Do NOT delegate further. Fix ONLY the confirmed issues listed — do NOT refactor beyond what is strictly needed.",
+      "tools": {
+        "bash": true,
+        "edit": true,
+        "read": true,
+        "write": true
+      }
+    },
+    "sdd-executor-gpt": {
+      "model": "openai/gpt-5.6-sol",
+      "description": "Generic SDD executor — runs any SDD phase (explore, propose, spec, design, tasks, apply, verify, archive, init, onboard)",
+      "hidden": true,
+      "mode": "subagent",
+      "prompt": "You are an SDD phase executor. Do this phase's work yourself. Do NOT delegate, call task, or launch sub-agents. Read the SKILL.md file path provided in the task prompt and follow it exactly. The task prompt tells you which phase to run and provides all context.",
+      "tools": {
+        "bash": true,
+        "edit": true,
+        "read": true,
+        "write": true
+      }
+    },
+    "ai-orchestrator-gpt": {
+      "model": "openai/gpt-5.6-sol",
+      "description": "AI Orchestrator (GPT stack) - coordinates GPT sub-agents, never does work inline",
+      "mode": "primary",
+      "permission": {
+        "bash": "deny",
+        "edit": "deny",
+        "question": "allow",
+        "task": {
+          "*": "deny",
+          "general": "allow",
+          "general-purpose": "allow",
+          "readonly-reviewer-gpt": "allow",
+          "fix-executor-gpt": "allow",
+          "sdd-executor-gpt": "allow"
+        }
+      },
+      "prompt": "{file:./prompts/orchestrator-gpt.md}",
+      "tools": {
+        "bash": false,
+        "edit": false,
+        "question": true,
+        "read": true,
+        "task": true,
+        "write": false
+      }
+    }
+  },
+  "mcp": {
+    "slack": {
+      "enabled": true,
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "slack-mcp-server@latest",
+        "--transport",
+        "stdio"
+      ],
+      "env": {
+        "SLACK_MCP_XOXC_TOKEN": "{env:SLACK_MCP_XOXC_TOKEN}",
+        "SLACK_MCP_XOXD_TOKEN": "{env:SLACK_MCP_XOXD_TOKEN}"
+      }
+    },
+    "sentry": {
+      "enabled": true,
+      "type": "remote",
+      "url": "https://mcp.sentry.dev/mcp"
+    },
+    "context7": {
+      "enabled": true,
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp"
+    },
+    "clickup": {
+      "enabled": true,
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "mcp-remote",
+        "https://mcp.clickup.com/mcp"
+      ]
+    },
+    "engram": {
+      "command": [
+        "engram",
+        "mcp",
+        "--tools=agent"
+      ],
+      "type": "local"
+    },
+    "codegraph": {
+      "enabled": true,
+      "type": "local",
+      "command": [
+        "codegraph",
+        "serve",
+        "--mcp"
+      ]
+    }
+  },
+  "permission": {
+    "websearch": "allow",
+    "webfetch": "allow",
+    "bash": {
+      "*": "allow",
+      "git commit *": "ask",
+      "git push": "ask",
+      "git push *": "ask",
+      "git push --force *": "ask",
+      "git rebase *": "ask",
+      "git reset --hard *": "ask"
+    },
+    "read": {
+      "*": "allow",
+      "**/*.key": "deny",
+      "**/*.pem": "deny",
+      "**/.aws/credentials": "deny",
+      "**/.config/gh/hosts.yml": "deny",
+      "**/.credentials/**": "deny",
+      "**/.env": "deny",
+      "**/.env.*": "deny",
+      "**/.ssh/**": "deny",
+      "**/Library/Keychains/**": "deny",
+      "**/credentials.json": "deny",
+      "**/secrets/**": "deny",
+      "*.env": "deny",
+      "*.env.*": "deny"
+    }
+  },
+  "share": "disabled"
+}

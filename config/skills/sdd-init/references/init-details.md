@@ -29,6 +29,8 @@
 
 ## Engram Saves
 
+Prerequisite: Engram MUST expose atomic topic compare-and-swap through `mem_save.expected_revision`; SDD must block rather than emulate it.
+
 ```text
 mem_save title/topic_key: sdd-init/{project}
 type: architecture
@@ -83,4 +85,4 @@ capture_prompt: false when available
 
 ## Output Templates
 
-Include project, stack, Engram topic keys and observation IDs, Strict TDD Mode, Testing Capabilities table, registry path, limitations, and next steps.
+Include project, stack, Engram persistence status, Strict TDD Mode, Testing Capabilities table, saved topic keys and observation IDs, limitations, and next steps.

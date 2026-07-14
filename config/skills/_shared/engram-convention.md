@@ -10,10 +10,65 @@ ALL SDD artifacts persisted to Engram MUST follow this deterministic naming:
 title:     sdd/{change-name}/{artifact-type}
 topic_key: sdd/{change-name}/{artifact-type}
 type:      architecture
-project:   {detected or current project name}
+project:   {exact project returned by mem_current_project/Engram}
 scope:     project
 capture_prompt: false
 ```
+
+Change specs remain isolated deltas at `sdd/{change-name}/spec`; a rebase replaces a stale active delta before archive. Canonical current specs use the single stable topic `sdd/specs/manifest`, advanced only by atomic `mem_save.expected_revision` CAS.
+
+Archived full-spec versions use a unique deterministic topic per domain, change, and archive generation:
+
+```
+title:     sdd/specs/{domain}/versions/{change-name}/generations/{archive-generation}
+topic_key: sdd/specs/{domain}/versions/{change-name}/generations/{archive-generation}
+type:      architecture
+project:   {exact project returned by mem_current_project/Engram}
+scope:     project
+capture_prompt: false
+content:   domain + archived change + archive generation/operation ID + artifact lineage + parent immutable-version metadata + complete merged specification
+```
+
+Archive reports are likewise immutable and generation-specific at `sdd/{change-name}/archive-reports/{archive-generation}`. Neither versions nor reports use upsert semantics. Create every report, including missing-report recovery, with `expected_revision: 0`; on `revision_conflict`, retrieve the winner and reuse it only when its exact generation, operation ID, artifact IDs, immutable version IDs/content and parent metadata, baselines, and manifest result are identical. Any mismatch blocks.
+
+```
+mem_save(
+  title: "sdd/{change-name}/archive-reports/{archive-generation}",
+  topic_key: "sdd/{change-name}/archive-reports/{archive-generation}",
+  expected_revision: 0,
+  type: "architecture",
+  project: "{project}",
+  capture_prompt: false,
+  content: "{deterministic report with exact generation/artifact/version lineage}"
+)
+```
+
+The canonical manifest has this shape and its Engram observation has `revision_count`:
+
+```yaml
+manifest: sdd/specs/manifest
+domains:
+  {domain}:
+    version_observation_id: {immutable-version-observation-id}
+    version_sync_id: {immutable-version-sync-id}
+    generation: {archive-generation}
+```
+
+Resolve the manifest once, then retrieve each relevant immutable version directly by the manifest's observation ID. Never use `mem_search` to enumerate versions. A change spec records the observed manifest baseline once and each domain's parent reference:
+
+```yaml
+manifest_baseline:
+  observation_id: {exact-manifest-observation-id-or-null}
+  sync_id: {exact-manifest-sync-id-or-null}
+  revision_count: {manifest-revision-or-0}
+domain_parents:
+  {domain}:
+    version_observation_id: {manifest-version-observation-id-or-null}
+    version_sync_id: {manifest-version-sync-id-or-null}
+    generation: {manifest-generation-or-null}
+```
+
+Revision `0` means create-if-absent for both an absent manifest and every immutable archive report. Archive creates all affected immutable versions, preserves every unaffected manifest entry, then calls exactly once `mem_save(topic_key: "sdd/specs/manifest", expected_revision: <revision_count>, ...)` with the complete updated map. After a lost publication result, retry recovery checks only affected domains. Each current affected ref must equal this generation's exact immutable version or descend from it: call `mem_get_observation` for the current ref and follow stored parent observation IDs directly until the generation version is reached, rejecting missing links, mismatches, or cycles. Never enumerate versions. Unrelated domain updates do not prevent report persistence and finalization. If the exact generation report is absent, recovery deterministically creates it from the frozen artifact IDs and exact immutable version IDs/content after this ancestry check using `expected_revision: 0`, then writes archived terminal state. If that create conflicts, recovery retrieves the winner and proceeds only when its exact generation/artifact/version lineage is identical; report preexistence is not required, but a mismatching winner blocks. If any affected ref neither equals nor descends from the generation version, the generation is aborted/conflicted and state explicitly returns to `active` with `rebase_required: true`, `reopened: false`, and cleared current-generation pointers. Orphan version evidence is audit history and never canonical.
 
 Set `capture_prompt: false` when the Engram tool schema supports it; if an older schema rejects or does not expose the field, omit it rather than failing.
 
@@ -28,11 +83,8 @@ Set `capture_prompt: false` when the Engram tool schema supports it; if an older
 | `tasks` | sdd-tasks | Task breakdown |
 | `apply-progress` | sdd-apply | Implementation progress (one per batch) |
 | `verify-report` | sdd-verify | Verification report |
-| `archive-report/{archive-generation}` | sdd-archive | Immutable archive closure with lineage |
-| `state` | orchestrator | DAG state for recovery after compaction |
-| `sdd/specs/manifest` | sdd-archive | Atomic canonical map of every domain to an immutable version |
-
-Each archive writes all affected immutable, generation-scoped observations at `sdd/specs/{domain}/versions/{change-name}/{archive-generation}`, then atomically replaces `sdd/specs/manifest` once with `mem_save(expected_revision: baseline_revision)`. The stable manifest maps every domain to its immutable version topic, ID, sync_id, and generation; unaffected entries are preserved exactly. Read only that manifest to resolve canonical state; absence means revision `0`. A CAS conflict canonically publishes none of the generation, and its immutable versions remain non-canonical evidence. Never enumerate version topics to infer canonical state.
+| `archive-reports/{generation}` | sdd-archive | Immutable archive-generation closure with lineage |
+| `state` | orchestrator / sdd-archive | Progress plus active/archiving/archived lifecycle state |
 
 
 
@@ -45,13 +97,23 @@ mem_save(
   type: "architecture",
   project: "{project}",
   capture_prompt: false,
-  content: "change: {change-name}\nstate: active\nphase: {last-phase}\narchive_generation: 0\narchive_generation_status: null\nlast_archived_generation: 0\nartifact_store: engram\ndag_progress:\n  explore: { status: done, observation_id: <id> }\n  proposal: { status: done, observation_id: <id> }\n  specs: { status: done, observation_id: <id> }\n  design: { status: missing, observation_id: null }\n  tasks: { status: missing, observation_id: null }\n  apply_progress: { status: missing, observation_id: null }\n  verify_report: { status: missing, observation_id: null }\n  archive_report: { status: missing, observation_id: null }\narchive_report:\n  generation: null\n  topic_key: null\n  observation_id: null\n  archived_at: null\n  spec_version_observation_ids: []\ntasks_progress:\n  completed: []\n  pending: []\nlast_updated: {ISO date}"
+  content: "change: {change-name}\nstate: active\nphase: {last-successful-phase-or-joined-stage}\npersistence: engram\narchive_generation: 0\narchive_operation_id: null\nreopened: false\nrebase_required: false\ndag_progress:\n  proposal: done\n  specs: done\n  design: missing\n  tasks: missing\n  apply: missing\n  verify: missing\n  archive: missing\nartifacts:\n  proposal: {observation-id-or-null}\n  specs: {observation-id-or-null}\n  design: {observation-id-or-null}\n  tasks: {observation-id-or-null}\n  apply_progress: {observation-id-or-null}\n  verify_report: {observation-id-or-null}\n  archive_report_topic: null\n  archive_report_observation_id: null\nspec_version_observation_ids: {}\ncanonical_manifest_result: null\nprior_archive_generations: []\ntasks_progress:\n  completed: []\n  pending: []\nlast_updated: {ISO timestamp}"
 )
+```
+
+Create this topic on the first successful phase transition and upsert it after every later successful transition. For parallel spec/design execution, persist once after both results are available so one branch cannot overwrite the other's DAG progress. Keep `state: active` through verify. Archive first writes `state: archiving` with a unique generation and frozen artifact/baseline lineage, then writes immutable generation evidence, and finally changes that same generation to `archived`.
+
+```text
+first archive: active generation 0 -> archiving generation 1 -> archived generation 1
+reopen:        archived generation 1 -> active/reopened generation 2
+re-archive:    active/reopened generation 2 -> archiving generation 2 -> archived generation 2
+retry:         archiving generation N -> archiving generation N -> archived generation N
+conflict:      archiving/reopened generation N -> active/rebase-required/reopened-false generation N -> next attempt generation N+1
 ```
 
 Recovery: `mem_search("sdd/{change-name}/state")` → `mem_get_observation(id)` → parse YAML → restore state.
 
-`state` is `active`, `archiving`, or `archived`. Every successful non-archive transition keeps it active and updates `dag_progress` with the artifact's exact observation ID. Before any archive output, archive selects a generation greater than `last_archived_generation`, sets `state: archiving`, and sets `archive_generation_status: archiving`. Archive finalization sets `state: archived`, `phase: archived`, `archive_generation_status: published`, `last_archived_generation: archive_generation`, and same-generation report fields. A manifest CAS or true recovery conflict sets `archive_generation_status: aborted-conflicted`, restores `state: active`, `phase: rebase-required`, and clears current archive references plus `reopened_at` and `reopen_reason`, so spec can rerun; that generation is never reused. Active selection includes `archiving` for recovery and excludes archived changes. Reopening increments `archive_generation` above the preserved last archived value, reserves it with `archive_generation_status: pending`, sets `state: active`, `phase: reopened`, records `reopened_at` and `reopen_reason`, and clears current archive references before any artifact update; old reports remain historical.
+Archived change artifacts under `sdd/{change-name}/...` are immutable. On explicit reopen, increment `archive_generation`, write `state: active` with `reopened: true`, record the reason/time, clear current-generation operation/report/version/manifest-result pointers, and retain older generation pointers only as history. Re-archive uses the reserved incremented generation. A manifest CAS conflict records the aborted/conflicted generation plus orphan versions in history and explicitly restores active state with `rebase_required: true` and `reopened: false`; clearing that flag consumes the reopened reservation, so rerunning `sdd-spec` and later phases leads the next archive to allocate a fresh generation. Never modify or reuse older evidence as current retry evidence.
 
 ## Recovery Protocol (2 steps)
 
@@ -114,7 +176,7 @@ mem_save(
 )
 ```
 
-`capture_prompt: false` is REQUIRED for SDD artifacts when the Engram tool schema supports it. Engram v1.15.3 captures user prompts by default for human/proactive saves, but SDD artifacts are automated pipeline outputs. Do not infer this from `type` because both SDD artifacts and human architecture decisions use `architecture`. If an older schema rejects or does not expose `capture_prompt`, omit it rather than failing. SDD additionally requires an Engram version whose `mem_save` schema exposes `expected_revision` and returns `id`, `sync_id`, and `revision_count`; missing CAS support is not backward-compatible and MUST block SDD initialization and onboarding.
+`capture_prompt: false` is REQUIRED for SDD artifacts when the Engram tool schema supports it. Engram v1.15.3 captures user prompts by default for human/proactive saves, but SDD artifacts are automated pipeline outputs. Do not infer this from `type` because both SDD artifacts and human architecture decisions use `architecture`. If an older schema rejects or does not expose `capture_prompt`, omit it rather than failing.
 
 Update existing artifact (when you have the observation ID):
 ```
@@ -132,13 +194,13 @@ mem_search(query: "sdd/{change-name}/", project: "{project}")
 
 ## Project Name Resolution (engram v1.11.0+)
 
-Every SDD command and phase calls `mem_current_project` before memory work and uses the returned `project` identity for every Engram operation. This is the same Engram identity used by the plugin's remote-first detection (with Engram overrides and normalization applied by Engram). Never substitute the workspace basename. The workspace root remains separate for `actionContext` and repository operations.
+Call `mem_current_project` and use its exact returned `project` value for every SDD search and save. A phase may instead consume that exact value when the orchestrator passes it. Keep the authoritative workspace path separately in `actionContext.workspaceRoot`; do not derive project identity from that path. Engram detection may use the git remote, `--project`, or `ENGRAM_PROJECT`, and Engram owns any normalization.
 
 If the agent saves a memory under a project name that doesn't match existing observations, engram warns about potential name drift. Use `mem_merge_projects` (MCP tool) or `engram projects consolidate` (CLI) to merge variants.
 
 ## Upsert Behavior
 
-Same `topic_key` + `project` + `scope` updates the current observation rather than inserting a duplicate. Previous content is not retained, so archive reports and domain versions use generation-scoped topic keys and are never updated after creation. Create archive reports, including recovery-created reports, with `mem_save(expected_revision: 0)`; on `revision_conflict`, retrieve the exact-topic winner and reuse it only when its generation plus complete artifact and immutable-version lineage are identical. The canonical spec manifest is the exception: it is one stable topic updated only by `mem_save(expected_revision: <baseline>)`.
+Same `topic_key` + `project` + `scope` updates mutable change artifacts such as state. Spec-version and archive-report topic keys include `{change-name}` and `{archive-generation}` and are immutable. The canonical manifest is mutable only through one `expected_revision` CAS per archive attempt. Reopen or a conflicted attempt advances the next archive generation, so every re-archive writes new immutable evidence.
 
 ## Why This Convention
 

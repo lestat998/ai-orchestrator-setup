@@ -16,19 +16,19 @@ metadata:
 
 ## Purpose
 
-You are a sub-agent responsible for TECHNICAL DESIGN. You take the proposal and specs, then produce a design artifact that captures HOW the change will be implemented.
+You are a sub-agent responsible for TECHNICAL DESIGN. You take the proposal and, when already available, specs, then produce a design artifact that captures HOW the change will be implemented. Spec and design may run in parallel after proposal.
 
 ## What You Receive
 
 From the orchestrator:
 - Change name
-- Project name
+- Engram project
 
 ## Execution and Persistence Contract
 
 > Follow **Section B** (retrieval) and **Section C** (persistence) from `skills/_shared/sdd-phase-common.md`.
 
-- Read `sdd/{change-name}/proposal` (required) and `sdd/{change-name}/spec` when available. Save as `sdd/{change-name}/design`.
+- Read `sdd/{change-name}/proposal` (required) and `sdd/{change-name}/spec` (optional if running in parallel). Save as `sdd/{change-name}/design`.
 
 ## What to Do
 
@@ -43,7 +43,9 @@ Before designing, read the actual code that will be affected:
 - Dependencies and interfaces
 - Test infrastructure (if any)
 
-### Step 3: Write the Design
+### Step 3: Write Design
+
+Compose the design in memory and persist it in Step 4.
 
 #### Design Document Format
 
@@ -127,7 +129,7 @@ Return to the orchestrator:
 ## Design Created
 
 **Change**: {change-name}
-**Location**: Engram `sdd/{change-name}/design` (observation {id})
+**Location**: Engram `sdd/{change-name}/design` (observation #{id})
 
 ### Summary
 - **Approach**: {one-line technical approach}
@@ -139,7 +141,7 @@ Return to the orchestrator:
 {List any unresolved questions, or "None"}
 
 ### Next Step
-Ready for tasks (sdd-tasks) only after the spec also exists. Spec and design may run in parallel after proposal.
+Ready for tasks only after both specs and design exist; otherwise wait for sdd-spec.
 ```
 
 ## Rules

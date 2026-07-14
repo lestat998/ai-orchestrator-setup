@@ -22,13 +22,13 @@ You are a sub-agent responsible for writing SPECIFICATIONS. You take the proposa
 
 From the orchestrator:
 - Change name
-- Project name
+- Engram project
 
 ## Execution and Persistence Contract
 
 > Follow **Section B** (retrieval) and **Section C** (persistence) from `skills/_shared/sdd-phase-common.md`.
 
-- Read `sdd/{change-name}/proposal` (required). Retrieve exactly `sdd/specs/manifest` in full, or establish that exact topic is absent. Record its observation ID, sync_id, and revision_count (`0` when absent), plus each affected domain's immutable version reference from that same manifest, as one baseline. Concatenate multiple domain deltas into one artifact with domain headers. Save as `sdd/{change-name}/spec`.
+- Read `sdd/{change-name}/proposal` and state (required). STOP if state is `archiving`; an active `rebase_required: true` state is explicitly routable here. Read exactly `sdd/specs/manifest` once (or confirm it is absent), retain its observation ID, sync ID, and `revision_count`, then retrieve each affected domain's immutable canonical version directly by the ID in the manifest. Concatenate multiple domain deltas into one artifact with one manifest baseline and domain parent references, then save as `sdd/{change-name}/spec`. A successful rebase replaces the stale spec and clears `rebase_required` in the orchestrator's subsequent active-state update.
 
 ## What to Do
 
@@ -41,74 +41,57 @@ Read the proposal's **Capabilities section** — this is your primary contract:
 
 ```
 FOR EACH entry under "New Capabilities":
-├── This becomes a NEW full domain section
-└── Write a complete spec — no existing behavior to reference
+└── Write a NEW complete domain section — no existing behavior to reference
 
 FOR EACH entry under "Modified Capabilities":
-├── This becomes a DELTA domain section
-└── Retrieve the latest relevant Engram spec first
+└── Write a DELTA domain section after reading related existing Engram spec artifacts
 ```
 
 If the proposal has no Capabilities section (older format), fall back to inferring from "Affected Areas". But always prefer the explicit Capabilities mapping when present.
 
 ### Step 3: Read Existing Specs
 
-Search for the exact topic key `sdd/specs/manifest` and retrieve that one observation in full once. Require its `revision_count` to match observation metadata and every domain entry to contain immutable version topic, observation ID, sync_id, and generation. For each affected domain, retrieve the exact immutable version referenced by its manifest entry to read the complete canonical specification. If the manifest or that domain entry is absent, the domain is new. Never scan or enumerate immutable version topics to reconstruct current state.
+Accept only the exact topic-key match `sdd/specs/manifest` and call `mem_get_observation` for its complete map. Resolve it once for the entire spec artifact. For each capability domain present in the map, call `mem_get_observation` with that domain's exact `version_observation_id`; verify the returned observation's sync ID and domain match the manifest before using its complete specification. Ignore non-exact search results, do not enumerate `versions/*`, and do not select current behavior from reports or version age.
 
-At the start of the spec artifact, persist one exact manifest baseline and the affected domain references derived from it:
-
-```yaml
-specBaseline:
-  manifestTopicKey: sdd/specs/manifest
-  manifestObservationId: <exact-manifest-observation-id>
-  manifestSyncId: <exact-manifest-sync-id>
-  manifestRevisionCount: <exact-positive-integer>
-  domains:
-    {domain}:
-      versionTopicKey: <immutable-version-topic>
-      versionObservationId: <immutable-version-observation-id>
-      versionSyncId: <immutable-version-sync-id>
-      generation: <archive-generation>
-      resolution: current
-```
-
-or, when no version observation exists:
+At the top of the spec artifact, record the manifest baseline exactly:
 
 ```yaml
-specBaseline:
-  manifestTopicKey: sdd/specs/manifest
-  manifestObservationId: null
-  manifestSyncId: null
-  manifestRevisionCount: 0
-  domains:
-    {domain}:
-      versionTopicKey: null
-      versionObservationId: null
-      versionSyncId: null
-      generation: null
-      absent: true
+manifest_baseline:
+  observation_id: {exact-manifest-observation-id-or-null}
+  sync_id: {exact-manifest-sync-id-or-null}
+  revision_count: {exact-revision-count-or-0}
 ```
 
-Never use a search preview, archive-report ID, title, timestamp, inferred version, or version enumeration as the baseline. The single manifest marker and every affected domain reference are required even for a new-domain full spec. A rebase MUST rerun spec against the newly retrieved canonical manifest and replace the exact CAS baseline.
+If the manifest is absent, record null IDs and `revision_count: 0`. Never omit or infer these fields; they are the archive CAS guard. At the top of EVERY domain section, also record exactly the parent entry observed in that same manifest:
+
+```yaml
+domain_parent:
+  domain: {domain}
+  version_observation_id: {manifest-version-observation-id-or-null}
+  version_sync_id: {manifest-version-sync-id-or-null}
+  generation: {manifest-generation-or-null}
+```
+
+An absent domain uses null/null/null. These parent references prove which immutable specifications were used without creating separate publication guards.
 
 ### Step 4: Write Delta Specs
 
-Compose all affected domain sections in one artifact and persist it in Step 5.
+Compose all domain sections in memory and persist them as one Engram artifact in Step 5.
 
 #### MODIFIED Requirements Workflow (CRITICAL — read before writing deltas)
 
 When writing a `## MODIFIED Requirements` section, follow this exact workflow:
 
 ```
-1. Locate the requirement in the retrieved current specification artifact
+1. Locate the requirement in the retrieved existing Engram spec
 2. COPY the ENTIRE requirement block — from `### Requirement:` through ALL its scenarios
 3. PASTE it under `## MODIFIED Requirements`
 4. EDIT the copy to reflect the new behavior
 5. Add "(Previously: {one-line summary of what changed})" under the requirement text
 
 Why copy-full-then-edit?
-→ Archive merges the verified delta into a new immutable domain version and records the resulting observation ID
-→ If your block is partial, later changes lose scenarios you did not copy
+→ The archive step REPLACES the requirement in main specs with your MODIFIED block
+→ If your block is partial, the archive will lose scenarios you didn't copy
 → Common pitfall: only writing the changed scenario and losing the rest
 → If adding NEW behavior WITHOUT changing existing behavior, use ADDED instead
 ```
@@ -116,7 +99,18 @@ Why copy-full-then-edit?
 #### Delta Spec Format
 
 ```markdown
+manifest_baseline:
+  observation_id: {exact-manifest-observation-id-or-null}
+  sync_id: {exact-manifest-sync-id-or-null}
+  revision_count: {exact-revision-count-or-0}
+
 # Delta for {Domain}
+
+domain_parent:
+  domain: {domain}
+  version_observation_id: {manifest-version-observation-id-or-null}
+  version_sync_id: {manifest-version-sync-id-or-null}
+  generation: {manifest-generation-or-null}
 
 ## ADDED Requirements
 
@@ -178,7 +172,18 @@ The system {MUST/SHALL/SHOULD} {do something specific}.
 If this is a completely new domain, create a FULL spec (not a delta):
 
 ```markdown
+manifest_baseline:
+  observation_id: {exact-manifest-observation-id-or-null}
+  sync_id: {exact-manifest-sync-id-or-null}
+  revision_count: {exact-revision-count-or-0}
+
 # {Domain} Specification
+
+domain_parent:
+  domain: {domain}
+  version_observation_id: null
+  version_sync_id: null
+  generation: null
 
 ## Purpose
 
@@ -226,7 +231,7 @@ Return to the orchestrator:
 - Error states: {covered/missing}
 
 ### Next Step
-Ready for design (sdd-design). Spec and design may run in parallel after proposal; tasks require BOTH artifacts.
+Ready for design (sdd-design). If design already exists, ready for tasks (sdd-tasks).
 ```
 
 ## Rules
@@ -234,10 +239,9 @@ Ready for design (sdd-design). Spec and design may run in parallel after proposa
 - ALWAYS use Given/When/Then format for scenarios
 - ALWAYS use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY) for requirement strength
 - Read the proposal's **Capabilities section** first — it tells you exactly which spec files to create
-- Read exactly one `sdd/specs/manifest` observation as the current baseline, then read only immutable versions referenced by its affected domain entries; never enumerate versions
-- Record exact manifest observation ID, sync_id, revision_count, and all affected domain version refs, or revision `0` with explicit absent refs
 - If existing specs exist, write DELTA specs (ADDED/MODIFIED/REMOVED sections)
 - If NO existing specs exist for the domain, write a FULL spec
+- The artifact MUST record the exact canonical manifest observation ID, sync ID, and revision count once, using null/null/0 when absent; every domain section MUST record its exact immutable parent version ID, sync ID, and generation from that manifest, using null/null/null for a new domain
 - Every requirement MUST have at least ONE scenario
 - Include both happy path AND edge case scenarios
 - Keep scenarios TESTABLE — someone should be able to write an automated test from each one

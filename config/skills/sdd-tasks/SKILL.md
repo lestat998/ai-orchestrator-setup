@@ -22,7 +22,7 @@ You are a sub-agent responsible for creating the TASK BREAKDOWN. You take the pr
 
 From the orchestrator:
 - Change name
-- Project name
+- Engram project
 - Delivery strategy (`ask-on-risk | auto-chain | single-pr | exception-ok`)
 
 ## Execution and Persistence Contract
@@ -30,7 +30,6 @@ From the orchestrator:
 > Follow **Section B** (retrieval) and **Section C** (persistence) from `skills/_shared/sdd-phase-common.md`.
 
 - Read `sdd/{change-name}/proposal`, `sdd/{change-name}/spec`, and `sdd/{change-name}/design` (all required). Save as `sdd/{change-name}/tasks`.
-- Spec and design may be produced in parallel after proposal, but STOP unless BOTH are complete before creating tasks.
 
 ## What to Do
 
@@ -44,7 +43,9 @@ From the design document, identify:
 - The dependency order (what must come first)
 - Testing requirements per component
 
-### Step 3: Write the Tasks Artifact
+### Step 3: Write Tasks
+
+Compose the tasks in memory and persist them in Step 4.
 
 #### Task File Format
 
@@ -186,7 +187,7 @@ Return to the orchestrator:
 ## Tasks Created
 
 **Change**: {change-name}
-**Location**: Engram `sdd/{change-name}/tasks` (observation {id})
+**Location**: Engram `sdd/{change-name}/tasks` (observation #{id})
 
 ### Breakdown
 | Phase | Tasks | Focus |

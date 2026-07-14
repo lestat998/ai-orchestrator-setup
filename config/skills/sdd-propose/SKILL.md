@@ -16,20 +16,20 @@ metadata:
 
 ## Purpose
 
-You are a sub-agent responsible for creating PROPOSALS. You take exploration analysis or direct user input and produce a structured proposal artifact.
+You are a sub-agent responsible for creating PROPOSALS. You take the exploration analysis or direct user input and produce a structured proposal artifact.
 
 ## What You Receive
 
 From the orchestrator:
 - Change name (e.g., "add-dark-mode")
 - Exploration analysis (from sdd-explore) OR direct user description
-- Project name
+- Engram project
 
 ## Execution and Persistence Contract
 
 > Follow **Section B** (retrieval) and **Section C** (persistence) from `skills/_shared/sdd-phase-common.md`.
 
-- Read `sdd/{change-name}/explore` and `sdd-init/{project}` when present. Save as `sdd/{change-name}/proposal`.
+- Read `sdd/{change-name}/explore` and `sdd-init/{project}` when available. Save as `sdd/{change-name}/proposal`.
 
 ## What to Do
 
@@ -52,11 +52,7 @@ From the orchestrator:
 ### Step 1: Load Skills
 Follow **Section A** from `skills/_shared/sdd-phase-common.md`.
 
-### Step 2: Read Existing SDD Context
-
-Retrieve relevant project context and prior specification artifacts from Engram. Do not use search previews as source material.
-
-### Step 3: Write the Proposal
+### Step 2: Write Proposal
 
 ```markdown
 # Proposal: {Change Title}
@@ -80,8 +76,8 @@ Be specific about the user need or technical debt being addressed.}
 ## Capabilities
 
 > This section is the CONTRACT between proposal and specs phases.
-> The sdd-spec agent reads this to know exactly which domain sections to create or update.
-> Research existing Engram specification artifacts before filling this in.
+> The sdd-spec phase reads this to know exactly which spec domains to create or update.
+> Research existing Engram spec artifacts before filling this in.
 
 ### New Capabilities
 <!-- Capabilities being introduced. Each becomes a domain section in the spec artifact.
@@ -92,7 +88,7 @@ Be specific about the user need or technical debt being addressed.}
 ### Modified Capabilities
 <!-- Existing capabilities whose REQUIREMENTS are changing (not just implementation).
      Only list here if spec-level behavior changes. Each needs a delta spec.
-     Use existing domain names from Engram specs. Leave empty if none. -->
+     Use existing capability names from related Engram specs. Leave empty if none. -->
 - `<existing-capability-name>`: <what requirement is changing>
 
 ## Approach
@@ -126,7 +122,7 @@ Reference the recommended approach from exploration if available.}
 - [ ] {Measurable outcome}
 ```
 
-### Step 4: Persist Artifact
+### Step 3: Persist Artifact
 
 **This step is MANDATORY — do NOT skip it.**
 
@@ -134,8 +130,9 @@ Follow **Section C** from `skills/_shared/sdd-phase-common.md`.
 - artifact: `proposal`
 - topic_key: `sdd/{change-name}/proposal`
 - type: `architecture`
+- Ensure `sdd/{change-name}/state` records `state: active`, `phase: proposal`, and the proposal observation ID. Do not overwrite an archived state without explicit reopen authorization.
 
-### Step 5: Return Summary
+### Step 4: Return Summary
 
 Return to the orchestrator:
 
@@ -143,7 +140,7 @@ Return to the orchestrator:
 ## Proposal Created
 
 **Change**: {change-name}
-**Location**: Engram `sdd/{change-name}/proposal` (observation {id})
+**Location**: Engram `sdd/{change-name}/proposal` (observation #{id})
 
 ### Summary
 - **Intent**: {one-line summary}
@@ -157,14 +154,13 @@ Ready for specs (sdd-spec) or design (sdd-design).
 
 ## Rules
 
-- If the proposal topic already exists, retrieve it first and update the same topic key
+- If a proposal observation already exists, READ it first and UPDATE it.
 - Keep the proposal CONCISE - it's a thinking tool, not a novel
 - Every proposal MUST have a rollback plan
 - Every proposal MUST have success criteria
 - Use concrete file paths in "Affected Areas" when possible
-- **ALWAYS fill in the Capabilities section** — this is the contract with sdd-spec. Research existing Engram spec artifacts first to use correct capability names.
-- New Capabilities become full domain sections in the spec artifact
-- Modified Capabilities become delta sections in the spec artifact
+- **ALWAYS fill in the Capabilities section** — this is the contract with sdd-spec. Research related Engram specs first to use correct existing capability names.
+- New Capabilities become full domain sections; modified capabilities become delta sections in `sdd/{change-name}/spec`.
 - If nothing changes at the spec level (pure refactor, config change), explicitly write "None" under both sub-sections — don't leave them as template placeholders
 - **Size budget**: Proposal artifact MUST be under 450 words. Use bullet points and tables over prose. Headers organize, not explain.
 - Return envelope per **Section D** from `skills/_shared/sdd-phase-common.md`.

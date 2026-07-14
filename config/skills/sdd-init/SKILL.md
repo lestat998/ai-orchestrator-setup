@@ -1,12 +1,12 @@
 ---
 name: sdd-init
-description: "Trigger: sdd init, initialize SDD. Detect project context, testing capabilities, registry, and Engram persistence."
+description: "Trigger: sdd init, iniciar sdd. Initialize SDD context, testing capabilities, registry, and Engram persistence."
 disable-model-invocation: true
 user-invocable: false
 license: MIT
 metadata:
   author: gentleman-programming
-  version: "4.0"
+  version: "3.0"
   delegate_only: true
 ---
 
@@ -16,42 +16,40 @@ metadata:
 
 ## Activation Contract
 
-Initialize SDD for the current project. Engram is mandatory; if its tools are unavailable or `mem_save` does not expose atomic `expected_revision` CAS with `id`, `sync_id`, and `revision_count` results, stop and report the blocker.
+Run this phase when the orchestrator/user asks to initialize SDD in a project. You are the phase executor: do the work yourself, do not delegate, and do not behave like the orchestrator.
 
 ## Hard Rules
 
-- Detect the real stack, architecture, conventions, and testing tools; never guess.
-- Persist project context as `sdd-init/{project}`.
-- Persist testing capabilities separately as `sdd/{project}/testing-capabilities`.
-- Build `.atl/skill-registry.md` and save `skill-registry` to Engram.
-- Use `capture_prompt: false` for automated saves when supported.
-- Do not create repository-local SDD planning artifacts.
-- Require the installed Engram `mem_save` schema to expose `expected_revision`; do not silently downgrade to unguarded spec-manifest writes.
+- Detect the real stack, conventions, architecture, and testing tools; never guess.
+- Engram with atomic `mem_save.expected_revision` topic CAS is mandatory. Return `blocked` if unavailable or unsupported.
+- Always persist testing capabilities separately as `sdd/{project}/testing-capabilities`.
+- Always build `.atl/skill-registry.md`; also save `skill-registry` to Engram when available.
+- Use `capture_prompt: false` for automated SDD/config saves when supported; omit it if the tool schema lacks it.
 
-## Strict TDD Resolution
+## Decision Gates
 
-| Evidence | Result |
+| Input | Action |
 |---|---|
-| Agent/project marker explicitly sets Strict TDD | Use that value. |
-| No marker and a test runner exists | Default `strict_tdd: true`. |
-| No test runner | Set `strict_tdd: false` and explain why. |
+| Engram unavailable or missing atomic `mem_save.expected_revision` | Return `blocked`; do not start SDD. |
+| strict TDD marker/config found | Use that value. |
+| no marker/config but test runner exists | Default `strict_tdd: true`. |
+| no test runner | Set `strict_tdd: false` and explain unavailable. |
 
 ## Execution Steps
 
-1. Confirm Engram availability and that `mem_save` exposes `expected_revision` plus `id`, `sync_id`, and `revision_count` results; stop if not.
-2. Inspect project manifests, CI, lint, format, type-check, and test configuration.
-3. Detect test runner, test layers, coverage, and quality commands.
-4. Resolve Strict TDD using the table above.
-5. Build `.atl/skill-registry.md` using the registry scan rules.
-6. Save project context, testing capabilities, and registry to their deterministic topic keys.
-7. Return the shared response envelope with observation IDs.
+1. Inspect project files (`package.json`, `go.mod`, `pyproject.toml`, CI, lint/test config) and summarize stack/conventions.
+2. Detect test runner, test layers, coverage, linter, type checker, and formatter.
+3. Resolve Strict TDD from agent marker, cached testing capabilities, detected runner fallback, or no-runner fallback.
+4. Verify Engram persistence and atomic `mem_save.expected_revision` are available.
+5. Build `.atl/skill-registry.md` using the skill-registry scan rules.
+6. Persist testing capabilities and project context.
+7. Return the structured initialization envelope.
 
 ## Output Contract
 
-Return `status`, `executive_summary`, `artifacts`, `next_recommended`, `risks`, and `skill_resolution`. Include project, stack, Strict TDD status, testing capability table, saved topic keys and observation IDs, registry path, and the next `/sdd-explore` or `/sdd-new` step.
+Return `status`, `executive_summary`, `artifacts`, `next_recommended`, and `risks`. Include project, stack, Strict TDD status, testing capability table, saved observation IDs/topic keys, registry path, and next `/sdd-explore` or `/sdd-new` step.
 
 ## References
 
-- [references/init-details.md](references/init-details.md)
-- `../_shared/engram-convention.md`
-- `../_shared/sdd-phase-common.md`
+- [references/init-details.md](references/init-details.md) — detection checklist, Engram payloads, config skeleton, and output templates.
+- `../_shared/engram-convention.md` — Engram artifact naming.
