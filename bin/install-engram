@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+RELEASE_REPO="${ENGRAM_RELEASE_REPO:-lestat998/engram}"
+RELEASE_TAG="${ENGRAM_RELEASE_TAG:-v1.19.1-cas.1}"
+
+has_atomic_topic_cas() {
+  local binary="$1"
+  local capabilities_json
+
+  capabilities_json="$("$binary" capabilities --json 2>/dev/null)" || return 1
+  CAPABILITIES_JSON="$capabilities_json" python3 <<'PY'
+import json
+import os
+import sys
+
+try:
+    capabilities = json.loads(os.environ["CAPABILITIES_JSON"])
+    if capabilities.get("schema_version") != 1:
+        raise RuntimeError("schema_version must be 1")
+    feature = capabilities["features"]["atomic_topic_cas"]
+    if feature.get("supported") is not True:
+        raise RuntimeError("atomic_topic_cas must be supported")
+    expected_revision = feature["input"]["expected_revision"]
+    if expected_revision != {"type": "integer", "minimum": 0, "requires": "topic_key"}:
+        raise RuntimeError("unexpected expected_revision contract")
+    if set(feature.get("success_fields", [])) != {"id", "sync_id", "revision_count"}:
+        raise RuntimeError("unexpected success fields")
+    if set(feature.get("error_codes", [])) != {
+        "revision_conflict",
+        "expected_revision_requires_topic",
+        "invalid_expected_revision",
+    }:
+        raise RuntimeError("unexpected error codes")
+except (KeyError, RuntimeError, TypeError, ValueError, json.JSONDecodeError):
+    sys.exit(1)
+PY
+}
+
+current_engram="$(command -v engram 2>/dev/null || true)"
+if [ -n "$current_engram" ] && has_atomic_topic_cas "$current_engram"; then
+  echo "-> Compatible engram already installed: $($current_engram --version)"
+  exit 0
+fi
+
+if [ "$(uname -s)" != "Darwin" ]; then
+  echo "ERROR: automatic Engram replacement currently supports macOS only." >&2
+  echo "       Install $RELEASE_REPO $RELEASE_TAG manually, then rerun bootstrap." >&2
+  exit 1
+fi
+
+for dependency in brew curl python3 shasum tar; do
+  if ! command -v "$dependency" >/dev/null 2>&1; then
+    echo "ERROR: required command not found: $dependency" >&2
+    exit 1
+  fi
+done
+
+case "$(uname -m)" in
+  arm64)
+    release_arch="arm64"
+    expected_checksum="c66b9563a36bdeb901ddb3133036eb20f3e2366dd9b1a9693130c585e690b55c"
+    ;;
+  x86_64)
+    release_arch="amd64"
+    expected_checksum="7c98b8297b07be624c4443c7c4afcef09f96f5eb8dbe5516fdaf788bb5966c63"
+    ;;
+  *)
+    echo "ERROR: unsupported macOS architecture: $(uname -m)" >&2
+    exit 1
+    ;;
+esac
+
+archive="engram_${RELEASE_TAG}_darwin_${release_arch}.tar.gz"
+release_url="https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_TAG}"
+install_bin="${ENGRAM_INSTALL_BIN:-${current_engram:-$(brew --prefix)/bin/engram}}"
+
+install_release() (
+  set -euo pipefail
+  stage="$(mktemp -d "${TMPDIR:-/tmp}/engram-install.XXXXXX")"
+  trap 'rm -rf "$stage"' EXIT
+
+  echo "-> Installing Engram $RELEASE_TAG from $RELEASE_REPO..."
+  curl -fsSL "$release_url/$archive" -o "$stage/$archive"
+  printf '%s  %s\n' "$expected_checksum" "$stage/$archive" | shasum -a 256 -c -
+  tar -xzf "$stage/$archive" -C "$stage"
+
+  if brew list --formula gentleman-programming/tap/engram >/dev/null 2>&1; then
+    echo "-> Uninstalling incompatible upstream Engram formula..."
+    brew uninstall --formula gentleman-programming/tap/engram
+  fi
+
+  mkdir -p "$(dirname "$install_bin")"
+  install -m 0755 "$stage/engram" "$install_bin"
+)
+
+install_release
+
+if ! has_atomic_topic_cas "$install_bin"; then
+  echo "ERROR: installed Engram does not provide the required atomic topic CAS contract." >&2
+  exit 1
+fi
+
+echo "-> Installed compatible engram: $($install_bin --version)"

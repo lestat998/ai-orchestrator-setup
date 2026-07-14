@@ -25,23 +25,37 @@ if contract == "missing":
     print(json.dumps({"features": {}}))
 elif contract == "incomplete":
     print(json.dumps({
+        "schema_version": 1,
         "features": {
             "atomic_topic_cas": {
-                "version": 1,
-                "input_fields": ["topic_key", "expected_revision"],
+                "supported": True,
+                "input": {
+                    "expected_revision": {"type": "integer", "minimum": 0, "requires": "topic_key"},
+                },
                 "success_fields": ["id", "sync_id"],
-                "error_codes": ["revision_conflict"],
+                "error_codes": [
+                    "revision_conflict",
+                    "expected_revision_requires_topic",
+                    "invalid_expected_revision",
+                ],
             }
         }
     }))
 else:
     print(json.dumps({
+        "schema_version": 1,
         "features": {
             "atomic_topic_cas": {
-                "version": 1,
-                "input_fields": ["topic_key", "expected_revision"],
+                "supported": True,
+                "input": {
+                    "expected_revision": {"type": "integer", "minimum": 0, "requires": "topic_key"},
+                },
                 "success_fields": ["id", "sync_id", "revision_count"],
-                "error_codes": ["revision_conflict"],
+                "error_codes": [
+                    "revision_conflict",
+                    "expected_revision_requires_topic",
+                    "invalid_expected_revision",
+                ],
             }
         }
     }))

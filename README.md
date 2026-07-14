@@ -25,12 +25,12 @@ memory, codebase intelligence, and a structured skill system.
   install of engram and codegraph)
 - [Node.js](https://nodejs.org) (for codegraph)
 - A ChatGPT Plus or Pro account for OpenAI OAuth
-- An Engram release whose `engram capabilities --json` output declares
-  `features.atomic_topic_cas` version 1 or newer, with the exact inputs
-  `topic_key`/`expected_revision`, success fields `id`/`sync_id`/
-  `revision_count`, and `revision_conflict` error code. SDD initialization and
-  onboarding must stop rather than write the canonical spec manifest without
-  this contract.
+- An Engram release whose `engram capabilities --json` output declares schema
+  version 1 and supported `features.atomic_topic_cas`, with integer
+  `expected_revision` requiring `topic_key`, success fields `id`/`sync_id`/
+  `revision_count`, and the documented CAS validation error codes. SDD
+  initialization and onboarding must stop rather than write the canonical spec
+  manifest without this contract.
 
 ## Install
 
@@ -38,6 +38,11 @@ memory, codebase intelligence, and a structured skill system.
 git clone https://github.com/lestat998/ai-orchestrator-setup.git ~/ai-orchestrator-setup
 ~/ai-orchestrator-setup/bin/bootstrap
 ```
+
+Bootstrap keeps an existing Engram only when it exposes that complete capability
+contract. Otherwise it uninstalls the incompatible upstream Homebrew formula and
+installs the checksum-verified `lestat998/engram` `v1.19.1-cas.1` release.
+This replacement does not remove the existing database under `~/.engram`.
 
 Restart OpenCode after bootstrap, then run `/connect`, select OpenAI, and choose the ChatGPT
 Plus/Pro browser login. OpenCode handles this OAuth flow natively; do not install
@@ -72,8 +77,8 @@ Edit `~/.config/opencode/AGENTS.md`. The file has two sections:
 - **No shared AI credentials** — authenticate with your own ChatGPT Plus or Pro account via OAuth.
 - **No personal memory** — engram starts with an empty database. Your
   observations build up over time as you work.
-- **No external CLI dependency** — this setup is fully standalone. The skills
-  and protocols work natively with OpenCode.
+- **No orchestration CLI dependency** — the skills and protocols work natively
+  with OpenCode; bootstrap installs the required Engram and CodeGraph tools.
 
 ## Structure
 
@@ -102,12 +107,12 @@ git pull
 bin/bootstrap
 ```
 
-Bootstrap stages the configuration and checks `engram capabilities --json`
-before backing up or replacing the active OpenCode config. It fails without
-changing that config or its backups when the required `atomic_topic_cas`
-contract is absent or incomplete. Do not assume the current Homebrew stable
-formula provides this capability; install a confirmed capability-bearing
-Engram release first.
+Bootstrap installs or replaces Engram first, then stages the configuration and
+checks `engram capabilities --json` before backing up or replacing the active
+OpenCode config. It fails without changing that config or its backups when the
+required `atomic_topic_cas` contract is absent or incomplete. The current
+upstream Homebrew formula does not provide this capability and is replaced
+automatically on macOS.
 
 This backs up your current config before overwriting. Your engram memory
 database is unaffected — it lives in engram's own data directory, not in

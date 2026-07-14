@@ -11,16 +11,11 @@ ENGRAM_BIN="${ENGRAM_BIN:-engram}"
 
 echo "== ai-orchestrator-setup bootstrap =="
 
-# 1. Install engram (persistent memory for the AI agent).
-if ! command -v "$ENGRAM_BIN" >/dev/null 2>&1; then
-  if [ "$ENGRAM_BIN" != "engram" ]; then
-    echo "ERROR: ENGRAM_BIN is not executable: $ENGRAM_BIN" >&2
-    exit 1
-  fi
-  echo "-> Installing engram..."
-  brew install gentleman-programming/tap/engram
+# 1. Replace incompatible upstream Engram builds with the pinned CAS release.
+if [ "$ENGRAM_BIN" = "engram" ]; then
+  "$REPO/bin/install-engram"
 else
-  echo "-> engram already installed: $("$ENGRAM_BIN" --version 2>/dev/null || echo 'ok')"
+  echo "-> Using ENGRAM_BIN override: $ENGRAM_BIN"
 fi
 
 # 2. Install codegraph (codebase knowledge graph for structural queries).
@@ -51,13 +46,22 @@ import sys
 
 try:
     capabilities = json.loads(os.environ["CAPABILITIES_JSON"])
+    if capabilities.get("schema_version") != 1:
+        raise RuntimeError("schema_version must be 1")
     feature = capabilities["features"]["atomic_topic_cas"]
-    if not isinstance(feature.get("version"), int) or feature["version"] < 1:
-        raise RuntimeError("features.atomic_topic_cas.version must be at least 1")
+    if feature.get("supported") is not True:
+        raise RuntimeError("features.atomic_topic_cas.supported must be true")
+    expected_revision = feature["input"]["expected_revision"]
+    expected_input = {"type": "integer", "minimum": 0, "requires": "topic_key"}
+    if expected_revision != expected_input:
+        raise RuntimeError(f"expected_revision must declare exactly {expected_input}")
     contracts = {
-        "input_fields": {"topic_key", "expected_revision"},
         "success_fields": {"id", "sync_id", "revision_count"},
-        "error_codes": {"revision_conflict"},
+        "error_codes": {
+            "revision_conflict",
+            "expected_revision_requires_topic",
+            "invalid_expected_revision",
+        },
     }
     for field, expected in contracts.items():
         declared = feature.get(field)
@@ -68,7 +72,7 @@ except Exception as error:
     sys.exit(1)
 PY
 then
-  echo "ERROR: bootstrap requires the Engram atomic_topic_cas capability contract (version >= 1)." >&2
+  echo "ERROR: bootstrap requires the Engram atomic_topic_cas capability contract (schema version 1)." >&2
   echo "       The active OpenCode config was not changed; existing backups remain intact." >&2
   echo "       Install a capability-bearing Engram release, then rerun bootstrap." >&2
   exit 1
