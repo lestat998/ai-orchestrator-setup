@@ -63,7 +63,7 @@ else:
 
 
 class BootstrapCapabilityTest(unittest.TestCase):
-    def run_bootstrap(self, capability):
+    def run_bootstrap(self, capability, agents_md=None):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         base = Path(temp.name)
@@ -76,6 +76,8 @@ class BootstrapCapabilityTest(unittest.TestCase):
         backup.mkdir(parents=True)
         (config / "keep.txt").write_text("active-before\n")
         (backup / "keep.txt").write_text("backup-before\n")
+        if agents_md is not None:
+            (config / "AGENTS.md").write_text(agents_md)
 
         engram = bin_dir / "engram-stub"
         engram.write_text(textwrap.dedent(ENGRAM_STUB))
@@ -168,6 +170,91 @@ class BootstrapCapabilityTest(unittest.TestCase):
         self.assertIn("parentObservationId", status_contract)
         self.assertIn("parentSyncId", status_contract)
         self.assertIn("parentGeneration", status_contract)
+
+    @staticmethod
+    def _extract_block(text, open_marker, close_marker):
+        start = text.index(open_marker)
+        end = text.index(close_marker) + len(close_marker)
+        return text[start:end]
+
+    def test_agents_md_splice_preserves_user_regions_and_updates_managed(self):
+        repo_agents = (ROOT / "config" / "AGENTS.md").read_text()
+        engram_block = self._extract_block(
+            repo_agents,
+            "<!-- ai-orchestrator:engram-protocol -->",
+            "<!-- /ai-orchestrator:engram-protocol -->",
+        )
+        codegraph_block = self._extract_block(
+            repo_agents,
+            "<!-- ai-orchestrator:codegraph-guidance -->",
+            "<!-- /ai-orchestrator:codegraph-guidance -->",
+        )
+
+        live = textwrap.dedent("""\
+            <!-- ai-orchestrator:persona -->
+            ## Rules
+
+            - MY CUSTOM PERSONA RULE: always answer like a pirate.
+            <!-- /ai-orchestrator:persona -->
+
+            # My personal freeform notes
+
+            Freeform text outside any marker that must survive verbatim.
+
+            <!-- ai-orchestrator:engram-protocol -->
+            ## Engram (STALE)
+
+            STALE ENGRAM CONTENT that must be replaced by the staged version.
+            <!-- /ai-orchestrator:engram-protocol -->
+
+            <!-- ai-orchestrator:codegraph-guidance -->
+            ## CodeGraph (STALE)
+
+            STALE CODEGRAPH CONTENT that must be replaced by the staged version.
+            <!-- /ai-orchestrator:codegraph-guidance -->
+
+            <!-- user-override: language -->
+            ## Reply Language Override
+
+            MY CUSTOM LANGUAGE OVERRIDE: reply in Klingon.
+            """)
+
+        result, config, _, home, env = self.run_bootstrap("present", agents_md=live)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+        spliced = (config / "AGENTS.md").read_text()
+
+        # User-owned persona edits are preserved verbatim (and NOT overwritten
+        # by the repo's own persona block, which is not a managed region).
+        self.assertIn("MY CUSTOM PERSONA RULE: always answer like a pirate.", spliced)
+        self.assertNotIn("Senior Architect", spliced)
+
+        # User-owned override region preserved verbatim.
+        self.assertIn("MY CUSTOM LANGUAGE OVERRIDE: reply in Klingon.", spliced)
+
+        # Freeform text outside markers preserved verbatim.
+        self.assertIn("# My personal freeform notes", spliced)
+        self.assertIn("Freeform text outside any marker that must survive verbatim.", spliced)
+
+        # Managed blocks now equal the repo's current version.
+        self.assertIn(engram_block, spliced)
+        self.assertIn(codegraph_block, spliced)
+
+        # Stale managed content is gone.
+        self.assertNotIn("STALE ENGRAM CONTENT", spliced)
+        self.assertNotIn("STALE CODEGRAPH CONTENT", spliced)
+
+        # Idempotency: a second run yields a byte-identical AGENTS.md.
+        second_result = subprocess.run(
+            [str(ROOT / "bin" / "bootstrap")],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+            timeout=20,
+        )
+        self.assertEqual(second_result.returncode, 0, second_result.stderr)
+        self.assertEqual((config / "AGENTS.md").read_text(), spliced)
 
 
 if __name__ == "__main__":

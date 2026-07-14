@@ -96,7 +96,92 @@ if [ -d "$OC" ]; then
 fi
 mkdir -p "$OC"
 echo "-> Installing orchestrator config..."
-rsync -a --delete "${EXCLUDES[@]}" "$STAGE/" "$OC/"
+# AGENTS.md is spliced separately (below) so user-owned regions are never
+# clobbered or --deleted by the wholesale config install.
+rsync -a --delete "${EXCLUDES[@]}" --exclude AGENTS.md "$STAGE/" "$OC/"
+
+# 6. Splice AGENTS.md: replace tool-owned managed blocks with the staged
+#    version while preserving every user-owned region verbatim. Runs AFTER the
+#    main install so the live file is the merge base. POSIX awk only (portable
+#    across macOS/BSD and Linux).
+STAGED_AGENTS="$STAGE/AGENTS.md"
+LIVE_AGENTS="$OC/AGENTS.md"
+if [ -f "$STAGED_AGENTS" ]; then
+  if [ -f "$LIVE_AGENTS" ]; then
+    echo "-> Splicing managed regions into existing AGENTS.md..."
+    SPLICE_TMP="$(mktemp "$OC/.AGENTS.md.XXXXXX")"
+    if awk '
+      BEGIN {
+        nblk = 2
+        om[1] = "<!-- ai-orchestrator:engram-protocol -->"
+        cm[1] = "<!-- /ai-orchestrator:engram-protocol -->"
+        om[2] = "<!-- ai-orchestrator:codegraph-guidance -->"
+        cm[2] = "<!-- /ai-orchestrator:codegraph-guidance -->"
+        scap = 0
+        lskip = 0
+      }
+      # Pass 1: the staged file. Capture each managed block, line by line.
+      FNR == NR {
+        if (scap > 0) {
+          scount[scap]++
+          sline[scap, scount[scap]] = $0
+          if ($0 == cm[scap]) scap = 0
+          next
+        }
+        for (i = 1; i <= nblk; i++) {
+          if ($0 == om[i]) {
+            scap = i; shas[i] = 1
+            scount[i] = 1; sline[i, 1] = $0
+            next
+          }
+        }
+        next
+      }
+      # Pass 2: the live file (the merge base).
+      {
+        if (lskip > 0) {
+          if ($0 == cm[lskip]) lskip = 0
+          next
+        }
+        matched = 0
+        for (i = 1; i <= nblk; i++) {
+          if ($0 == om[i]) matched = i
+        }
+        if (matched > 0) {
+          lhas[matched] = 1
+          if (shas[matched]) {
+            for (k = 1; k <= scount[matched]; k++) print sline[matched, k]
+            lskip = matched
+          } else {
+            # Managed marker in live but absent from staged: keep live verbatim.
+            print $0
+          }
+          next
+        }
+        print $0
+      }
+      # Managed blocks present in staged but absent from live: append at EOF,
+      # each preceded by one blank line, in staged order.
+      END {
+        for (i = 1; i <= nblk; i++) {
+          if (shas[i] && !lhas[i]) {
+            print ""
+            for (k = 1; k <= scount[i]; k++) print sline[i, k]
+          }
+        }
+      }
+    ' "$STAGED_AGENTS" "$LIVE_AGENTS" > "$SPLICE_TMP"; then
+      mv "$SPLICE_TMP" "$LIVE_AGENTS"
+    else
+      rm -f "$SPLICE_TMP"
+      echo "ERROR: failed to splice AGENTS.md; left existing file untouched." >&2
+      exit 1
+    fi
+  else
+    echo "-> Installing AGENTS.md (no existing file)..."
+    cp "$STAGED_AGENTS" "$LIVE_AGENTS"
+  fi
+fi
 
 echo
 echo "OK bootstrap complete."
