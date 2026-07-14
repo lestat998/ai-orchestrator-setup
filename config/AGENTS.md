@@ -118,6 +118,16 @@ If you see a compaction message or "FIRST ACTION REQUIRED":
 3. Only THEN continue working
 
 Do not skip step 1.
+
+### NATIVE COMPACTION vs DCP RANGE COMPRESSION
+
+Two different mechanisms shrink context. Treat them differently:
+
+- **Native OpenCode compaction** (the "FIRST ACTION REQUIRED" / compaction message above) is a full session summarization. It MUST still trigger `mem_session_summary` first, then `mem_context`, exactly as AFTER COMPACTION describes.
+- **DCP range compression** (the `compress` tool / `/dcp-compress`) is short-term, in-flight context cleanup that replaces stale spans with technical summaries. It does NOT end the session. Do NOT call `mem_session_summary` because of a DCP compression. After a DCP compression, call `mem_search` / `mem_context` ONLY if you find required context is actually missing — otherwise keep working.
+
+Engram is long-term memory; DCP is short-term context hygiene. They are complementary and never substitute for each other.
+
 <!-- /ai-orchestrator:engram-protocol -->
 
 <!-- ai-orchestrator:codegraph-guidance -->

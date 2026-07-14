@@ -1,0 +1,77 @@
+{
+  // DCP (Dynamic Context Pruning) configuration.
+  // Docs: https://www.npmjs.com/package/@tarquinen/opencode-dcp
+  // bin/bootstrap copies this to ~/.config/opencode/dcp.jsonc ONLY when no live
+  // dcp.jsonc exists, so local edits are preserved.
+  "$schema": "https://raw.githubusercontent.com/Opencode-DCP/opencode-dynamic-context-pruning/master/dcp.schema.json",
+  "enabled": true,
+  "autoUpdate": false,
+  "pruneNotification": "minimal",
+  "commands": {
+    "enabled": true,
+    "protectedTools": []
+  },
+  "turnProtection": {
+    "enabled": true,
+    "turns": 6
+  },
+  "experimental": {
+    "allowSubAgents": false,
+    "customPrompts": false
+  },
+  "protectedFilePatterns": [],
+  "compress": {
+    "mode": "range",
+    "permission": "allow",
+    "maxContextLimit": 140000,
+    "minContextLimit": 70000,
+    "nudgeFrequency": 5,
+    "iterationNudgeThreshold": 15,
+    "nudgeForce": "soft",
+    "protectedTools": [
+      "mem_context",
+      "mem_search",
+      "mem_get_observation",
+      "mem_session_summary",
+      "mem_save",
+      "mem_update",
+      "mem_suggest_topic_key",
+      "codegraph_explore",
+      "task",
+      "skill"
+    ]
+  },
+  "strategies": {
+    "deduplication": {
+      "enabled": true,
+      "protectedTools": [
+        "mem_context",
+        "mem_search",
+        "mem_get_observation",
+        "mem_session_summary",
+        "mem_save",
+        "mem_update",
+        "mem_suggest_topic_key",
+        "codegraph_explore",
+        "task",
+        "skill"
+      ]
+    },
+    "purgeErrors": {
+      "enabled": true,
+      "turns": 4,
+      "protectedTools": [
+        "mem_context",
+        "mem_search",
+        "mem_get_observation",
+        "mem_session_summary",
+        "mem_save",
+        "mem_update",
+        "mem_suggest_topic_key",
+        "codegraph_explore",
+        "task",
+        "skill"
+      ]
+    }
+  }
+}

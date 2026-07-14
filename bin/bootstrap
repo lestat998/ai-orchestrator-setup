@@ -6,7 +6,7 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
 
 OC="$HOME/.config/opencode"
-EXCLUDES=(--exclude node_modules --exclude package.json --exclude package-lock.json --exclude bun.lock)
+EXCLUDES=(--exclude node_modules --exclude package.json --exclude package-lock.json --exclude bun.lock --exclude dcp.jsonc)
 ENGRAM_BIN="${ENGRAM_BIN:-engram}"
 
 echo "== ai-orchestrator-setup bootstrap =="
@@ -24,6 +24,15 @@ if ! command -v codegraph >/dev/null 2>&1; then
   npm install -g @colbymchenry/codegraph
 else
   echo "-> codegraph already installed"
+fi
+
+# --- DCP (Dynamic Context Pruning) plugin -------------------------------
+DCP_PKG="@tarquinen/opencode-dcp@3.1.14"
+if npm ls -g "$DCP_PKG" >/dev/null 2>&1; then
+  echo "DCP already installed ($DCP_PKG)."
+else
+  echo "Installing DCP ($DCP_PKG)..."
+  npm install -g "$DCP_PKG" || echo "WARN: DCP global install failed; OpenCode will install it from the plugin array on start."
 fi
 
 # 3. Warn if opencode is missing.
@@ -182,6 +191,23 @@ if [ -f "$STAGED_AGENTS" ]; then
     cp "$STAGED_AGENTS" "$LIVE_AGENTS"
   fi
 fi
+
+# --- DCP config: install default only if absent (preserve user edits) ---
+if [ -f "$OC/dcp.jsonc" ]; then
+  echo "Existing dcp.jsonc preserved."
+else
+  cp "$REPO/config/dcp.jsonc" "$OC/dcp.jsonc" && echo "Installed default dcp.jsonc."
+fi
+
+# --- DCP + Engram + agents validation -----------------------------------
+echo "Validating DCP integration..."
+dcp_fail=0
+grep -q '@tarquinen/opencode-dcp' "$OC/opencode.json" || { echo "FAIL: DCP not in plugin array"; dcp_fail=1; }
+npm ls -g @tarquinen/opencode-dcp >/dev/null 2>&1 && echo "OK: DCP installed" || echo "WARN: DCP not in global npm (OpenCode may load it from the array)"
+python3 -c "import json,sys,re;s=''.join(l for l in open(sys.argv[1]) if not re.match(r'\s*//',l));json.loads(s)" "$OC/dcp.jsonc" && echo "OK: dcp.jsonc valid" || { echo "FAIL: dcp.jsonc invalid"; dcp_fail=1; }
+grep -q '"engram"' "$OC/opencode.json" && [ -f "$OC/plugins/engram.ts" ] && echo "OK: Engram configured" || { echo "FAIL: Engram missing"; dcp_fail=1; }
+grep -q '"ai-orchestrator"' "$OC/opencode.json" && echo "OK: agents configured" || { echo "FAIL: agents missing"; dcp_fail=1; }
+[ "$dcp_fail" = 0 ] && echo "DCP validation passed." || { echo "DCP validation FAILED."; exit 1; }
 
 echo
 echo "OK bootstrap complete."
