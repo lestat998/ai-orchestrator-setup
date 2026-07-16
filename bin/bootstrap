@@ -121,11 +121,13 @@ if [ -f "$STAGED_AGENTS" ]; then
     SPLICE_TMP="$(mktemp "$OC/.AGENTS.md.XXXXXX")"
     if awk '
       BEGIN {
-        nblk = 2
+        nblk = 3
         om[1] = "<!-- ai-orchestrator:engram-protocol -->"
         cm[1] = "<!-- /ai-orchestrator:engram-protocol -->"
         om[2] = "<!-- ai-orchestrator:codegraph-guidance -->"
         cm[2] = "<!-- /ai-orchestrator:codegraph-guidance -->"
+        om[3] = "<!-- ai-orchestrator:evidence-first-delegation -->"
+        cm[3] = "<!-- /ai-orchestrator:evidence-first-delegation -->"
         scap = 0
         lskip = 0
       }
@@ -217,7 +219,8 @@ echo "   (credentials are stored outside the config folder — never synced)."
 echo
 echo "   Optional: customize your persona in ~/.config/opencode/AGENTS.md"
 echo "   The persona section at the top is yours to edit. The protocols below it"
-echo "   (Engram, CodeGraph, Skill Loading) are the orchestrator infrastructure."
+echo "   (Engram, CodeGraph, Evidence-First Delegation, Skill Loading) are the"
+echo "   orchestrator infrastructure."
 echo
 echo "   Optional experimental token reduction (verified with OpenCode 1.17.15):"
 echo "   OPENCODE_EXPERIMENTAL_CODE_MODE=1 opencode"

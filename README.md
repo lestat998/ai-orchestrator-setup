@@ -14,8 +14,10 @@ memory, codebase intelligence, and a structured skill system.
 - **12 slash commands** — `/sdd-init`, `/sdd-new`, `/sdd-verify`, etc.
 - **Engram plugin** — automatic session tracking, prompt capture, compaction
   resilience, and save nudges.
-- **Native GPT orchestrator stack** — one primary coordinator and three focused
-  subagents, all configured for OpenAI OAuth without an authentication plugin.
+- **Three orchestrator stacks** — Claude, GPT, and local-model variants with
+  matching primaries, executors, reviewers, and SDD executors.
+- **Decision matrices** — routing and safeguard validation docs that document
+  how the orchestrators should classify work and make safer choices.
 - **Engram-only SDD** — planning artifacts, state, verification, and archive
   reports use deterministic `sdd/<change>/<artifact>` topic keys.
 
@@ -44,15 +46,19 @@ contract. Otherwise it uninstalls the incompatible upstream Homebrew formula and
 installs the checksum-verified `lestat998/engram` `v1.19.1-cas.2` release.
 This replacement does not remove the existing database under `~/.engram`.
 
-Restart OpenCode after bootstrap, then run `/connect`, select OpenAI, and choose the ChatGPT
-Plus/Pro browser login. OpenCode handles this OAuth flow natively; do not install
-the `codex-auth` plugin. Credentials are stored outside the config folder and
-are never part of this repo.
+Restart OpenCode after bootstrap, then connect the providers you want to use.
+OpenCode handles OpenAI OAuth natively; do not install the `codex-auth` plugin.
+Credentials are stored outside the config folder and are never part of this repo.
 
-The four bundled agents default to `openai/gpt-5.6-sol`. If that model is not
-available to your account, replace the `model` value on all four agents in
-`~/.config/opencode/opencode.jsonc` with an OpenAI model you can access. Run
+The GPT stack defaults to `openai/gpt-5.6-sol`. If that model is not available
+to your account, replace the GPT agent `model` values in
+`~/.config/opencode/opencode.json` with an OpenAI model you can access. Run
 `opencode models openai` to see the models exposed by your installation.
+
+The local stack uses the `RUNPOD_LLM_BASE_URL`, `RUNPOD_LLM_API_KEY`, and
+`RUNPOD_LLM_MODEL` environment variables through the bundled
+`runpod-local-model` provider entry. If you do not use a local/self-hosted
+model, you can ignore the local agents.
 
 Launch directly with:
 
@@ -61,7 +67,7 @@ opencode --agent ai-orchestrator-gpt
 ```
 
 You can also start `opencode` normally and use Tab to select
-`ai-orchestrator-gpt` from the primary agents.
+`ai-orchestrator`, `ai-orchestrator-gpt`, or `ai-orchestrator-local`.
 
 ## Customize your persona
 
@@ -69,14 +75,17 @@ Edit `~/.config/opencode/AGENTS.md`. The file has two sections:
 
 1. **Persona** (top) — your personality, tone, and rules. Edit freely or delete
    for a neutral assistant.
-2. **Protocols** (below) — Engram memory, CodeGraph, skill loading. These are
-   the orchestrator infrastructure — edit only if you know what you're doing.
+2. **Protocols** (below) — Engram memory, CodeGraph, Evidence-First
+   Delegation, and skill-loading rules. These are the orchestrator
+   infrastructure — edit only if you know what you're doing.
 
 ## What's NOT included
 
 - **No shared AI credentials** — authenticate with your own ChatGPT Plus or Pro account via OAuth.
 - **No personal memory** — engram starts with an empty database. Your
   observations build up over time as you work.
+- **No personal MCP integrations** — personal connectors like Slack, Sentry,
+  and ClickUp are intentionally not shipped in this public repo.
 - **No orchestration CLI dependency** — the skills and protocols work natively
   with OpenCode; bootstrap installs the required Engram and CodeGraph tools.
 
@@ -87,8 +96,8 @@ ai-orchestrator-setup/
 ├── bin/bootstrap          # one-time setup script
 ├── config/
 │   ├── AGENTS.md          # persona (customizable) + protocols (infrastructure)
-│   ├── opencode.jsonc     # native OpenAI model, GPT agents, and MCP servers
-│   ├── prompts/           # GPT orchestrator prompt and subagent remapping
+│   ├── opencode.json      # orchestrator stacks, providers, plugins, and MCP servers
+│   ├── prompts/           # shared/GPT/local orchestrator prompts + validation matrices
 │   ├── tui.json           # TUI plugins (subagent statusline)
 │   ├── commands/          # 12 slash commands
 │   ├── plugins/

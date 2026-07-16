@@ -1,6 +1,7 @@
 node_modules/
 package-lock.json
 bun.lock
+.atl/.skill-registry.cache.json
 .DS_Store
 *.bak
 __pycache__/

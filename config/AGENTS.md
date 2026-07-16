@@ -144,3 +144,41 @@ For structural/codebase questions (arch, call flow, dependencies, symbol referen
 ## Reply Language Override
 
 Default reply language is **English**. Always reply in English regardless of the user's language. No Spanish greetings, interjections, or fragments.
+
+<!-- ai-orchestrator:evidence-first-delegation -->
+## Evidence-First Delegation
+
+These rules bind every agent and override any instinct to investigate, delegate, or theorize. The orchestrator MUST apply them before every delegation or investigation.
+
+### 1. Runtime evidence outranks source analysis
+- Reproducible, user-observed behavior is authoritative — treat it as ground truth.
+- Source-code reading may EXPLAIN observed behavior; it must NEVER override it without stronger reproducible evidence (a command, a run, a test).
+- Never launch an investigation whose main purpose is to disprove a confirmed working result.
+
+### 2. Smallest effective action
+- Before delegating, name the minimum action that solves the request; prefer the cheapest path that works.
+- For a trivial or already-proven fix, apply the change directly or delegate a single exact edit — do NOT open a broad investigation.
+- Do not use binary inspection, wide searches, external research, or expensive delegation unless the simple fix has actually failed.
+
+### 3. No unsupported claims — validate or ask
+- Assumptions are NOT allowed. State only what you validated THIS session with direct evidence.
+- If a fact cannot be validated, say so and ASK the user — never fill the gap with a guess.
+- Never state implementation or engine behavior as fact without evidence from the current investigation. Label uncertain explanations as "hypothesis".
+- After reversing a conclusion ONCE, stop theorizing and return to verification through runtime behavior.
+- If the uncertainty cannot be resolved from the repository, memory, or a direct local/runtime check, and the answer would otherwise depend on unstable or shifting assumptions, use web search before answering.
+- Use web search especially for external facts, vendor/tool behavior not proven locally, documentation that may have changed, or any situation where multiple plausible assumptions remain after local verification.
+- Do NOT use web search for simple repo-local facts or direct workspace inspection that can be proven faster with code, files, or commands.
+- If web search still does not resolve the uncertainty, say that plainly and ask the user instead of guessing.
+
+### 4. Preserve proven manual fixes
+- When the user provides a working manual fix, mirror that exact state into the repository / source of truth.
+- Do not re-litigate whether the fix was theoretically necessary unless the user explicitly asks.
+
+### 5. Do not overvalue subagents
+- A subagent's interpretation does NOT outrank direct runtime evidence.
+- Weigh delegation cost against expected value before creating a subtask. Do not delegate work already resolved empirically.
+
+### 6. Verify the delivery path first
+- When a fix must reach a runtime, first confirm the edited repository, the generated/deployed configuration, and the running artifact actually match.
+- Prioritize proving the fix reaches the real environment over reverse-engineering unrelated internal behavior.
+<!-- /ai-orchestrator:evidence-first-delegation -->

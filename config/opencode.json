@@ -285,6 +285,19 @@
           }
         }
       }
+    },
+    "runpod-local-model": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "{env:RUNPOD_LLM_MODEL}",
+      "options": {
+        "baseURL": "{env:RUNPOD_LLM_BASE_URL}",
+        "apiKey": "{env:RUNPOD_LLM_API_KEY}"
+      },
+      "models": {
+        "{env:RUNPOD_LLM_MODEL}": {
+          "name": "{env:RUNPOD_LLM_MODEL}"
+        }
+      }
     }
   },
   "agent": {
@@ -297,13 +310,7 @@
         "edit": "deny",
         "question": "allow",
         "task": {
-          "*": "deny",
-          "general": "allow",
-          "general-purpose": "allow",
-          "readonly-reviewer": "allow",
-          "fix-executor": "allow",
-          "sdd-executor": "allow",
-          "executor": "allow"
+          "*": "allow"
         }
       },
       "prompt": "{file:./prompts/orchestrator.md}",
@@ -316,7 +323,7 @@
         "write": false
       }
     },
-    "readonly-reviewer": {
+    "readonly-reviewer-claude": {
       "model": "anthropic/claude-opus-4-7",
       "description": "Generic read-only reviewer — handles R1-R4 review roles and judgment-day blind review",
       "hidden": true,
@@ -327,7 +334,18 @@
         "read": true
       }
     },
-    "fix-executor": {
+    "general-purpose-claude": {
+      "model": "anthropic/claude-sonnet-5",
+      "description": "Claude read-only explorer — handles small bash inspection and concise repository exploration",
+      "hidden": true,
+      "mode": "subagent",
+      "prompt": "You are a read-only exploration agent. Use bash and read tools for inspection only. Do NOT edit files, do NOT write, and do NOT delegate further. Keep results concise and evidence-first.",
+      "tools": {
+        "bash": true,
+        "read": true
+      }
+    },
+    "fix-executor-claude": {
       "model": "anthropic/claude-sonnet-5",
       "description": "Generic surgical fix executor — applies confirmed fixes from reviews and judgment-day",
       "hidden": true,
@@ -340,7 +358,7 @@
         "write": true
       }
     },
-    "sdd-executor": {
+    "sdd-executor-claude": {
       "model": "anthropic/claude-sonnet-5",
       "description": "Generic SDD executor — runs any SDD phase (explore, propose, spec, design, tasks, apply, verify, archive, init, onboard)",
       "hidden": true,
@@ -359,6 +377,17 @@
       "hidden": true,
       "mode": "subagent",
       "prompt": "You are a focused read-only reviewer. Your specific role rules are provided in the task prompt below. Do NOT modify any code — your job is ONLY to find problems and report findings with the severity and format requested. Do NOT delegate further.",
+      "tools": {
+        "bash": true,
+        "read": true
+      }
+    },
+    "general-purpose-gpt": {
+      "model": "openai/gpt-5.6-sol",
+      "description": "GPT read-only explorer — handles small bash inspection and concise repository exploration",
+      "hidden": true,
+      "mode": "subagent",
+      "prompt": "You are a read-only exploration agent. Use bash and read tools for inspection only. Do NOT edit files, do NOT write, and do NOT delegate further. Keep results concise and evidence-first.",
       "tools": {
         "bash": true,
         "read": true
@@ -390,13 +419,18 @@
         "write": true
       }
     },
-    "executor": {
+    "executor-claude": {
       "model": "anthropic/claude-sonnet-5",
       "description": "Generic implementation executor — applies changes, runs tests, commits, and self-verifies",
       "hidden": true,
       "mode": "subagent",
       "prompt": "You are an implementation executor. Do the work described in the task prompt yourself — do NOT delegate or call task. Apply the edits, run the specified tests, and commit with the given message. Then SELF-VERIFY: run `git status` and `git log -1 --oneline` and include their output. ALWAYS end your turn with the REPORT block exactly as specified in the task prompt. If you changed no files, the report must say Commit: NONE and explain why. If an edit's oldString doesn't match, re-read the exact bytes ONCE with `sed -n 'N,Mp' file | cat -v` (NOT `cat -A` — unsupported on macOS/BSD) then retry; do not loop. If the task spans multiple independent changes, report per unit.",
-      "tools": { "bash": true, "edit": true, "read": true, "write": true }
+      "tools": {
+        "bash": true,
+        "edit": true,
+        "read": true,
+        "write": true
+      }
     },
     "executor-gpt": {
       "model": "openai/gpt-5.6-sol",
@@ -404,7 +438,95 @@
       "hidden": true,
       "mode": "subagent",
       "prompt": "You are an implementation executor. Do the work described in the task prompt yourself — do NOT delegate or call task. Apply the edits, run the specified tests, and commit with the given message. Then SELF-VERIFY: run `git status` and `git log -1 --oneline` and include their output. ALWAYS end your turn with the REPORT block exactly as specified in the task prompt. If you changed no files, the report must say Commit: NONE and explain why. If an edit's oldString doesn't match, re-read the exact bytes ONCE with `sed -n 'N,Mp' file | cat -v` (NOT `cat -A` — unsupported on macOS/BSD) then retry; do not loop. If the task spans multiple independent changes, report per unit.",
-      "tools": { "bash": true, "edit": true, "read": true, "write": true }
+      "tools": {
+        "bash": true,
+        "edit": true,
+        "read": true,
+        "write": true
+      }
+    },
+    "readonly-reviewer-local": {
+      "model": "runpod-local-model/{env:RUNPOD_LLM_MODEL}",
+      "description": "Generic read-only reviewer (local stack) — handles R1-R4 review roles and judgment-day blind review",
+      "hidden": true,
+      "mode": "subagent",
+      "prompt": "You are a focused read-only reviewer. Your specific role rules are provided in the task prompt below. Do NOT modify any code — your job is ONLY to find problems and report findings with the severity and format requested. Do NOT delegate further.",
+      "tools": {
+        "bash": true,
+        "read": true
+      }
+    },
+    "general-purpose-local": {
+      "model": "runpod-local-model/{env:RUNPOD_LLM_MODEL}",
+      "description": "Local read-only explorer — handles small bash inspection and concise repository exploration",
+      "hidden": true,
+      "mode": "subagent",
+      "prompt": "You are a read-only exploration agent. Use bash and read tools for inspection only. Do NOT edit files, do NOT write, and do NOT delegate further. Keep results concise and evidence-first.",
+      "tools": {
+        "bash": true,
+        "read": true
+      }
+    },
+    "fix-executor-local": {
+      "model": "runpod-local-model/{env:RUNPOD_LLM_MODEL}",
+      "description": "Generic surgical fix executor (local stack) — applies confirmed fixes from reviews and judgment-day",
+      "hidden": true,
+      "mode": "subagent",
+      "prompt": "You are a surgical fix agent. Execute the fix instructions provided in the task prompt exactly. Do NOT delegate further. Fix ONLY the confirmed issues listed — do NOT refactor beyond what is strictly needed.",
+      "tools": {
+        "bash": true,
+        "edit": true,
+        "read": true,
+        "write": true
+      }
+    },
+    "sdd-executor-local": {
+      "model": "runpod-local-model/{env:RUNPOD_LLM_MODEL}",
+      "description": "Generic SDD executor (local stack) — runs any SDD phase (explore, propose, spec, design, tasks, apply, verify, archive, init, onboard)",
+      "hidden": true,
+      "mode": "subagent",
+      "prompt": "You are an SDD phase executor. Do this phase's work yourself. Do NOT delegate, call task, or launch sub-agents. Read the SKILL.md file path provided in the task prompt and follow it exactly. The task prompt tells you which phase to run and provides all context.",
+      "tools": {
+        "bash": true,
+        "edit": true,
+        "read": true,
+        "write": true
+      }
+    },
+    "executor-local": {
+      "model": "runpod-local-model/{env:RUNPOD_LLM_MODEL}",
+      "description": "Generic implementation executor (local stack) — applies changes, runs tests, commits, and self-verifies",
+      "hidden": true,
+      "mode": "subagent",
+      "prompt": "You are an implementation executor. Do the work described in the task prompt yourself — do NOT delegate or call task. Apply the edits, run the specified tests, and commit with the given message. Then SELF-VERIFY: run `git status` and `git log -1 --oneline` and include their output. ALWAYS end your turn with the REPORT block exactly as specified in the task prompt. If you changed no files, the report must say Commit: NONE and explain why. If an edit's oldString doesn't match, re-read the exact bytes ONCE with `sed -n 'N,Mp' file | cat -v` (NOT `cat -A` — unsupported on macOS/BSD) then retry; do not loop. If the task spans multiple independent changes, report per unit.",
+      "tools": {
+        "bash": true,
+        "edit": true,
+        "read": true,
+        "write": true
+      }
+    },
+    "ai-orchestrator-local": {
+      "model": "runpod-local-model/{env:RUNPOD_LLM_MODEL}",
+      "description": "AI Orchestrator (local stack) - coordinates local model sub-agents, never does work inline",
+      "mode": "primary",
+      "permission": {
+        "bash": "deny",
+        "edit": "deny",
+        "question": "allow",
+        "task": {
+          "*": "allow"
+        }
+      },
+      "prompt": "{file:./prompts/orchestrator-local.md}",
+      "tools": {
+        "bash": false,
+        "edit": false,
+        "question": true,
+        "read": true,
+        "task": true,
+        "write": false
+      }
     },
     "ai-orchestrator-gpt": {
       "model": "openai/gpt-5.6-sol",
@@ -415,13 +537,7 @@
         "edit": "deny",
         "question": "allow",
         "task": {
-          "*": "deny",
-          "general": "allow",
-          "general-purpose": "allow",
-          "readonly-reviewer-gpt": "allow",
-          "fix-executor-gpt": "allow",
-          "sdd-executor-gpt": "allow",
-          "executor-gpt": "allow"
+          "*": "allow"
         }
       },
       "prompt": "{file:./prompts/orchestrator-gpt.md}",
