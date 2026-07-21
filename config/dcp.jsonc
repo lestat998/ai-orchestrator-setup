@@ -1,8 +1,8 @@
 {
   // DCP (Dynamic Context Pruning) configuration.
   // Docs: https://www.npmjs.com/package/@tarquinen/opencode-dcp
-  // bin/bootstrap copies this to ~/.config/opencode/dcp.jsonc ONLY when no live
-  // dcp.jsonc exists, so local edits are preserved.
+  // bin/bootstrap installs this as v2. Later managed-list migrations preserve
+  // user-tuned thresholds and replace only the explicit protectedTools lists.
   "$schema": "https://raw.githubusercontent.com/Opencode-DCP/opencode-dynamic-context-pruning/master/dcp.schema.json",
   "enabled": true,
   "autoUpdate": false,

@@ -12,7 +12,7 @@ Engram remembers across time; DCP keeps a single session lean. One never replace
 ## Configuration
 
 - DCP plugin: pinned in `opencode.json` under `plugin` (`@tarquinen/opencode-dcp@3.1.14`).
-- DCP settings: `dcp.jsonc`, deployed to `~/.config/opencode/dcp.jsonc`. `bin/bootstrap` copies the default **only if none exists**, so local edits are preserved. It is excluded from the destructive config sync for the same reason.
+- DCP settings: `dcp.jsonc`, deployed to `~/.config/opencode/dcp.jsonc`. `bin/bootstrap` installs the default on first run, then performs versioned migrations that preserve local settings while refreshing only the managed explicit `protectedTools` lists. It is excluded from the destructive config sync for the same reason.
 
 Key defaults: `range` compression, conservative limits for 272k-token models (`minContextLimit` 70000 / `maxContextLimit` 140000), turn protection (6 turns), deduplication and failed-tool input cleanup on, minimal notifications, auto-update off.
 
@@ -36,4 +36,4 @@ Set `"enabled": false` in `~/.config/opencode/dcp.jsonc` and restart OpenCode. T
 ## Interaction with Engram (compaction vs compression)
 
 - **Native OpenCode compaction** still triggers `mem_session_summary` then `mem_context` — it is a full session summarization.
-- **DCP range compression** does NOT trigger `mem_session_summary`. After a DCP pass, search Engram only if required context is actually missing.
+- **DCP range compression** does NOT trigger `mem_session_summary`. Before new investigation, delegation, mutation, or planning, re-anchor the active request, scope, task, accepted evidence, and next authorized action. If any is missing or contradictory, ask exactly one concise question and stop; do not search Engram automatically.

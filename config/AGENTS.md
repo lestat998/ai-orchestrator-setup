@@ -124,7 +124,7 @@ Do not skip step 1.
 Two different mechanisms shrink context. Treat them differently:
 
 - **Native OpenCode compaction** (the "FIRST ACTION REQUIRED" / compaction message above) is a full session summarization. It MUST still trigger `mem_session_summary` first, then `mem_context`, exactly as AFTER COMPACTION describes.
-- **DCP range compression** (the `compress` tool / `/dcp-compress`) is short-term, in-flight context cleanup that replaces stale spans with technical summaries. It does NOT end the session. Do NOT call `mem_session_summary` because of a DCP compression. After a DCP compression, call `mem_search` / `mem_context` ONLY if you find required context is actually missing — otherwise keep working.
+- **DCP range compression** (the `compress` tool / `/dcp-compress`) is short-term, in-flight context cleanup that replaces stale spans with technical summaries. It does NOT end the session. Do NOT call `mem_session_summary` because of a DCP compression. Re-anchor before any new investigation, delegation, mutation, or planning; if required context is missing or contradictory, ask exactly one concise question and STOP rather than retrieving memory automatically.
 
 Engram is long-term memory; DCP is short-term context hygiene. They are complementary and never substitute for each other.
 
@@ -162,6 +162,8 @@ These rules bind every agent and override any instinct to investigate, delegate,
 
 ### 3. No unsupported claims — validate or ask
 - Assumptions are NOT allowed. State only what you validated THIS session with direct evidence.
+- Label evidence precisely: repository/source inspection is **source evidence**, not runtime proof. Never call an untested conclusion "confirmed", "implemented", or "root cause".
+- When user, production, or runtime evidence contradicts a conclusion, immediately invalidate that conclusion. Start a fresh diagnosis from direct evidence and do not reassert the prior conclusion unless new direct evidence resolves the contradiction.
 - If a fact cannot be validated, say so and ASK the user — never fill the gap with a guess.
 - Never state implementation or engine behavior as fact without evidence from the current investigation. Label uncertain explanations as "hypothesis".
 - After reversing a conclusion ONCE, stop theorizing and return to verification through runtime behavior.
@@ -181,4 +183,14 @@ These rules bind every agent and override any instinct to investigate, delegate,
 ### 6. Verify the delivery path first
 - When a fix must reach a runtime, first confirm the edited repository, the generated/deployed configuration, and the running artifact actually match.
 - Prioritize proving the fix reaches the real environment over reverse-engineering unrelated internal behavior.
+
+### 7. Scope lock
+- Treat explicit scope boundaries (for example, "backend only", "validation only", or "do not change code") as hard limits.
+- Do not investigate, implement, plan, or repeatedly extend into excluded areas.
+- Mention an out-of-scope risk only when essential to the requested result; state it once, without exploring it, and return to the requested scope.
+
+### 8. Post-DCP compression re-anchor
+- Immediately after a DCP range compression and before any new investigation, delegation, mutation, or planning, internally re-anchor: the active user request; confirmed scope and constraints; the current branch or task; accepted facts and their evidence status; and the next authorized action.
+- If any of the five facts is missing or contradictory, ask EXACTLY ONE concise question and STOP. Do not infer from compressed history, auto-call memory, or re-plan to fill the gap.
+- This is a continuity guard, not a causal claim about DCP. It preserves existing DCP behavior and never substitutes for the native-compaction recovery protocol.
 <!-- /ai-orchestrator:evidence-first-delegation -->

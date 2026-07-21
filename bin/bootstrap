@@ -6,7 +6,7 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
 
 OC="$HOME/.config/opencode"
-EXCLUDES=(--exclude node_modules --exclude package.json --exclude package-lock.json --exclude bun.lock --exclude dcp.jsonc)
+EXCLUDES=(--exclude node_modules --exclude package.json --exclude package-lock.json --exclude bun.lock --exclude dcp.jsonc --exclude .dcp-config-version)
 ENGRAM_BIN="${ENGRAM_BIN:-engram}"
 
 echo "== ai-orchestrator-setup bootstrap =="
@@ -194,11 +194,34 @@ if [ -f "$STAGED_AGENTS" ]; then
   fi
 fi
 
-# --- DCP config: install default only if absent (preserve user edits) ---
-if [ -f "$OC/dcp.jsonc" ]; then
-  echo "Existing dcp.jsonc preserved."
+# --- DCP config: version-aware install/migrate (preserves user edits) ---
+# Fresh installs copy the default and stamp its version. Existing installs are
+# migrated only when the shipped version is newer: the live file is backed up,
+# then only the managed protectedTools lists are refreshed. User-tuned limits,
+# thresholds, toggles, and any other keys remain untouched. A missing version
+# file is a legacy install and is treated as v1.
+DCP_CONFIG_VERSION=2
+DCP_VERSION_FILE="$OC/.dcp-config-version"
+if [ ! -f "$OC/dcp.jsonc" ]; then
+  cp "$REPO/config/dcp.jsonc" "$OC/dcp.jsonc"
+  echo "$DCP_CONFIG_VERSION" > "$DCP_VERSION_FILE"
+  echo "Installed default dcp.jsonc (v$DCP_CONFIG_VERSION)."
 else
-  cp "$REPO/config/dcp.jsonc" "$OC/dcp.jsonc" && echo "Installed default dcp.jsonc."
+  dcp_installed_version="$(cat "$DCP_VERSION_FILE" 2>/dev/null || echo 1)"
+  case "$dcp_installed_version" in ''|*[!0-9]*) dcp_installed_version=1 ;; esac
+  if [ "$dcp_installed_version" -lt "$DCP_CONFIG_VERSION" ]; then
+    dcp_backup="$(mktemp "$OC/dcp.jsonc.bak-$(date +%Y%m%d-%H%M%S).XXXXXX")"
+    cp "$OC/dcp.jsonc" "$dcp_backup"
+    if node "$REPO/bin/lib/dcp-migrate.mjs" "$OC/dcp.jsonc" "$REPO/config/dcp.jsonc"; then
+      echo "$DCP_CONFIG_VERSION" > "$DCP_VERSION_FILE"
+      echo "Migrated dcp.jsonc v$dcp_installed_version -> v$DCP_CONFIG_VERSION (backup: $dcp_backup)."
+    else
+      cp "$dcp_backup" "$OC/dcp.jsonc"
+      echo "WARN: dcp.jsonc migration failed; restored from $dcp_backup."
+    fi
+  else
+    echo "Existing dcp.jsonc up to date (v$dcp_installed_version)."
+  fi
 fi
 
 # --- DCP + Engram + agents validation -----------------------------------

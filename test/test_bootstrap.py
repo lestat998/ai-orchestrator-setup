@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -63,7 +64,7 @@ else:
 
 
 class BootstrapCapabilityTest(unittest.TestCase):
-    def run_bootstrap(self, capability, agents_md=None):
+    def run_bootstrap(self, capability, agents_md=None, dcp_json=None, dcp_version=None):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         base = Path(temp.name)
@@ -78,6 +79,10 @@ class BootstrapCapabilityTest(unittest.TestCase):
         (backup / "keep.txt").write_text("backup-before\n")
         if agents_md is not None:
             (config / "AGENTS.md").write_text(agents_md)
+        if dcp_json is not None:
+            (config / "dcp.jsonc").write_text(dcp_json)
+        if dcp_version is not None:
+            (config / ".dcp-config-version").write_text(dcp_version)
 
         engram = bin_dir / "engram-stub"
         engram.write_text(textwrap.dedent(ENGRAM_STUB))
@@ -124,6 +129,90 @@ class BootstrapCapabilityTest(unittest.TestCase):
         generated_backups = list((home / ".config").glob("opencode.backup.20*"))
         self.assertEqual(len(generated_backups), 1)
         self.assertEqual((generated_backups[0] / "keep.txt").read_text(), "active-before\n")
+        self.assertEqual((config / ".dcp-config-version").read_text(), "2\n")
+
+    def test_legacy_dcp_migration_preserves_user_thresholds_and_refreshes_explicit_tools(self):
+        legacy_dcp = textwrap.dedent("""\
+            {
+              // User-owned tuning must survive migration.
+              "enabled": false,
+              "commands": { "enabled": false, "protectedTools": ["user-command"] },
+              "turnProtection": { "enabled": true, "turns": 99 },
+              "compress": {
+                "maxContextLimit": 123456,
+                "minContextLimit": 45678,
+                "protectedTools": ["obsolete-tool"]
+              },
+              "strategies": {
+                "deduplication": { "enabled": false, "protectedTools": ["obsolete-tool"] },
+                "purgeErrors": { "turns": 12, "protectedTools": ["obsolete-tool"] }
+              },
+              "userExtension": { "keep": true },
+            }
+            """)
+        result, config, _, _, _ = self.run_bootstrap("present", dcp_json=legacy_dcp)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((config / ".dcp-config-version").read_text(), "2\n")
+
+        migrated = json.loads((config / "dcp.jsonc").read_text())
+        defaults = json.loads(
+            "\n".join(
+                line for line in (ROOT / "config" / "dcp.jsonc").read_text().splitlines()
+                if not line.lstrip().startswith("//")
+            )
+        )
+
+        self.assertFalse(migrated["enabled"])
+        self.assertFalse(migrated["commands"]["enabled"])
+        self.assertEqual(migrated["commands"]["protectedTools"], ["user-command"])
+        self.assertEqual(migrated["turnProtection"]["turns"], 99)
+        self.assertEqual(migrated["compress"]["maxContextLimit"], 123456)
+        self.assertEqual(migrated["compress"]["minContextLimit"], 45678)
+        self.assertFalse(migrated["strategies"]["deduplication"]["enabled"])
+        self.assertEqual(migrated["strategies"]["purgeErrors"]["turns"], 12)
+        self.assertEqual(migrated["userExtension"], {"keep": True})
+
+        self.assertEqual(
+            migrated["compress"]["protectedTools"],
+            defaults["compress"]["protectedTools"],
+        )
+        self.assertEqual(
+            migrated["strategies"]["deduplication"]["protectedTools"],
+            defaults["strategies"]["deduplication"]["protectedTools"],
+        )
+        self.assertEqual(
+            migrated["strategies"]["purgeErrors"]["protectedTools"],
+            defaults["strategies"]["purgeErrors"]["protectedTools"],
+        )
+        self.assertNotIn("mem_*", (config / "dcp.jsonc").read_text())
+        self.assertEqual(len(list(config.glob("dcp.jsonc.bak-*"))), 1)
+
+    def test_legacy_dcp_migration_adds_missing_managed_strategy_sections(self):
+        legacy_dcp = textwrap.dedent("""\
+            {
+              "compress": { "maxContextLimit": 123456, "protectedTools": ["obsolete-tool"] },
+              "strategies": { "deduplication": { "enabled": false } }
+            }
+            """)
+        result, config, _, _, _ = self.run_bootstrap("present", dcp_json=legacy_dcp)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+        migrated = json.loads((config / "dcp.jsonc").read_text())
+        defaults = json.loads(
+            "\n".join(
+                line for line in (ROOT / "config" / "dcp.jsonc").read_text().splitlines()
+                if not line.lstrip().startswith("//")
+            )
+        )
+        self.assertFalse(migrated["strategies"]["deduplication"]["enabled"])
+        self.assertEqual(
+            migrated["strategies"]["deduplication"]["protectedTools"],
+            defaults["strategies"]["deduplication"]["protectedTools"],
+        )
+        self.assertEqual(
+            migrated["strategies"]["purgeErrors"],
+            defaults["strategies"]["purgeErrors"],
+        )
 
     def test_fixed_date_collision_preserves_both_backups(self):
         result, config, _, home, env = self.run_bootstrap("present")
