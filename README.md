@@ -43,7 +43,7 @@ git clone https://github.com/lestat998/ai-orchestrator-setup.git ~/ai-orchestrat
 
 Bootstrap keeps an existing Engram only when it exposes that complete capability
 contract. Otherwise it uninstalls the incompatible upstream Homebrew formula and
-installs the checksum-verified `lestat998/engram` `v1.19.1-cas.2` release.
+installs the checksum-verified `lestat998/engram` `v1.20.0-cas.3` release.
 This replacement does not remove the existing database under `~/.engram`.
 
 Restart OpenCode after bootstrap, then connect the providers you want to use.
