@@ -71,7 +71,7 @@ case "$(uname -m)" in
     ;;
 esac
 
-archive="engram_${RELEASE_TAG}_darwin_${release_arch}.tar.gz"
+archive="engram_${RELEASE_TAG#v}_darwin_${release_arch}.tar.gz"
 release_url="https://github.com/${RELEASE_REPO}/releases/download/${RELEASE_TAG}"
 install_bin="${ENGRAM_INSTALL_BIN:-${current_engram:-$(brew --prefix)/bin/engram}}"
 
