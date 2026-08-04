@@ -28,6 +28,8 @@ const ENGRAM_TOOLS = new Set([
   "mem_save",
   "mem_update",
   "mem_delete",
+  "mem_review",
+  "mem_judge",
   "mem_suggest_topic_key",
   "mem_save_prompt",
   "mem_session_summary",
@@ -404,37 +406,19 @@ export const Engram: Plugin = async (ctx) => {
       }
     },
 
-    // ─── Compaction Hook: Persist memory + inject context ──────────
-    // Compaction is triggered by the system (not the agent) when context
-    // gets too long. The old agent "dies" and a new one starts with the
-    // compacted summary. This is our chance to:
-    // 1. Auto-save a session checkpoint (the agent can't do this itself)
-    // 2. Inject context from previous sessions into the compaction prompt
-    // 3. Tell the compressor to remind the new agent to save memories
+    // ─── Compaction Hook: Persist a durable checkpoint ─────────────
+    // Do not inject cross-session context here: it can be arbitrarily large
+    // and defeats DCP's token-reduction goal. The new agent can retrieve
+    // relevant memory on demand after it persists this session checkpoint.
 
     "experimental.session.compacting": async (input, output) => {
       if (input.sessionID) {
         await ensureSession(input.sessionID)
       }
 
-      // Inject context from previous sessions
-      const data = await engramFetch(
-        `/context?project=${encodeURIComponent(project)}`
-      )
-      if (data?.context) {
-        output.context.push(data.context)
-      }
-
-      // Tell the compressor to instruct the new agent to persist the
-      // compacted summary to Engram. The new agent reads the compacted
-      // summary and this instruction, then saves it as a session summary.
       output.context.push(
-        `CRITICAL INSTRUCTION FOR COMPACTED SUMMARY:\n` +
-        `The agent has access to Engram persistent memory via MCP tools.\n` +
-        `You MUST include the following instruction at the TOP of the compacted summary:\n\n` +
-        `"FIRST ACTION REQUIRED: Call mem_session_summary with the content of this compacted summary. ` +
-        `Use project: '${project}'. This preserves what was accomplished before compaction. Do this BEFORE any other work."\n\n` +
-        `This is NOT optional. Without this, everything done before compaction is lost from memory.`
+        `FIRST ACTION REQUIRED: Call mem_session_summary with this compacted summary ` +
+        `before other work (project: '${project}'). Then IMMEDIATELY call mem_context.`
       )
     },
   }

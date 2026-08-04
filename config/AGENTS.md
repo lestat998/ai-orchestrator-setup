@@ -88,11 +88,31 @@ Topic update rules:
 - Unsure about key → call `mem_suggest_topic_key` first
 - Know exact ID to fix → use `mem_update`
 
+### Memory Correction Gate
+
+Before saving a claim that is current, evolving, or revises a previous conclusion:
+1. Search the stable `topic_key` and retrieve the current observation in full.
+2. Do not create a second competing “current” memory. Use `mem_update` when the exact observation ID is known, or a same-topic upsert when that is the supported atomic operation.
+3. Classify new evidence explicitly: **correct** (replace canonical content), **supersede** (the old conclusion is no longer current), **compatible** (both apply to different scopes), or **delete** (only accidental, unsafe, or plainly invalid data).
+4. When Engram returns a conflict candidate, resolve it with `mem_judge`. Ask the user before choosing `supersede` or `conflicts_with` for an architecture, policy, or decision memory when confidence is below 0.7; otherwise record the evidence and resolve it.
+
+Observations are historical evidence. The stable topic is the canonical current truth. Never silently delete normal history merely because it is old.
+
 Memory lifecycle rule:
 - Call `mem_review` (action `list`) at session start or before architecture-sensitive work when available.
 - If unavailable, continue with `mem_context`/`mem_search`.
 - `active` memories may be used normally. `needs_review` = stale context; verify before relying on it.
 - Never auto-call `mark_reviewed` — only on explicit user confirmation.
+
+### Memory Maintenance
+
+When the user explicitly asks to maintain, audit, clean up, or review project memory, run a bounded maintenance pass:
+1. Call `mem_review(action: "list")` for the project and inspect up to 10 due observations.
+2. Prioritize volatile topics: active plans, dependency/model versions, current configuration, and architecture decisions.
+3. Verify each candidate against current repository or runtime evidence, then report a proposed classification: keep, correct, supersede, compatible, or delete.
+4. Apply non-destructive corrections only when supported by direct evidence. Require explicit user approval before deleting observations or marking an architecture, policy, or decision memory as superseded or reviewed.
+
+This is an on-demand maintenance workflow, not a background deletion job.
 
 ### WHEN TO SEARCH MEMORY
 
@@ -184,12 +204,17 @@ These rules bind every agent and override any instinct to investigate, delegate,
 - When a fix must reach a runtime, first confirm the edited repository, the generated/deployed configuration, and the running artifact actually match.
 - Prioritize proving the fix reaches the real environment over reverse-engineering unrelated internal behavior.
 
-### 7. Scope lock
+### 7. Verify delegation at the runtime boundary
+- A generated `task`/`invoke` payload, task prompt, or model narration is NOT evidence that delegation occurred. Claim a task was **scheduled** only after the task runtime returns an accepted task identifier or task-start event.
+- After a task is accepted, wait for its runtime result or an explicit runtime failure before reporting delegation success, starting a dependent task, or continuing the task's work. A task succeeds only when that result contains the required valid REPORT block.
+- If scheduling evidence is absent, state that the task was not confirmed as scheduled; do not say it was delegated or running. If the runtime returns an explicit launch failure, report that blocker. Do not fabricate a fallback result.
+
+### 8. Scope lock
 - Treat explicit scope boundaries (for example, "backend only", "validation only", or "do not change code") as hard limits.
 - Do not investigate, implement, plan, or repeatedly extend into excluded areas.
 - Mention an out-of-scope risk only when essential to the requested result; state it once, without exploring it, and return to the requested scope.
 
-### 8. Post-DCP compression re-anchor
+### 9. Post-DCP compression re-anchor
 - Immediately after a DCP range compression and before any new investigation, delegation, mutation, or planning, internally re-anchor: the active user request; confirmed scope and constraints; the current branch or task; accepted facts and their evidence status; and the next authorized action.
 - If any of the five facts is missing or contradictory, ask EXACTLY ONE concise question and STOP. Do not infer from compressed history, auto-call memory, or re-plan to fill the gap.
 - This is a continuity guard, not a causal claim about DCP. It preserves existing DCP behavior and never substitutes for the native-compaction recovery protocol.

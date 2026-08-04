@@ -71,7 +71,10 @@ REPORT
 ```
 
 Rules:
+- A task is not delegated merely because the model emitted an `invoke`/`task` payload or described one. Claim it was scheduled only after the task runtime returns an accepted task ID or task-start event.
+- After scheduling, wait for the runtime result or explicit runtime failure before reporting delegation success, starting dependent work, or continuing the delegated unit. For parallel independent tasks, wait for and account for every result before synthesis.
 - A task that returns no REPORT block = FAILED. Do NOT assume success or infer it worked. Re-delegate once with the contract restated; if still empty, report the blocker to the user.
+- If no scheduling evidence is returned, say the task was not confirmed as scheduled; if launch fails explicitly, report that failure. Never describe either condition as a completed or running delegation.
 - Never tell the user a mutation is "done" without a commit SHA or an explicit diff in the report.
 - Route non-trivial development work through SDD (see *SDD & Workflow Classification*); route only small fully-specified edits, tests, builds, and scripts to `executor-claude`. Use `general-purpose-claude` only for read-only exploration.
 - For small tasks or small explorations, keep the actual task brief to the sub-agent to two short lines maximum before the REPORT block/instructions.

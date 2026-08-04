@@ -302,7 +302,7 @@
   },
   "agent": {
     "ai-orchestrator": {
-      "model": "anthropic/claude-opus-4-8",
+      "model": "anthropic/claude-opus-5",
       "description": "AI Orchestrator SDD Orchestrator - coordinates sub-agents, never does work inline",
       "mode": "primary",
       "permission": {
@@ -324,7 +324,7 @@
       }
     },
     "readonly-reviewer-claude": {
-      "model": "anthropic/claude-opus-4-7",
+      "model": "anthropic/claude-opus-5",
       "description": "Generic read-only reviewer — handles R1-R4 review roles and judgment-day blind review",
       "hidden": true,
       "mode": "subagent",
