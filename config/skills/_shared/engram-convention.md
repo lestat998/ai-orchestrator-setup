@@ -125,6 +125,12 @@ Memory lifecycle rule (when Engram exposes lifecycle metadata/tooling):
 - Surface `needs_review` context and verify it against current evidence before relying on it.
 - Do NOT call `mem_review` with action `mark_reviewed` automatically. Only call `mark_reviewed` after explicit user confirmation or through a dedicated memory maintenance command.
 
+### Correction Protocol
+
+This protocol operationalizes the `Memory Correction Gate` in `config/AGENTS.md` for mutable SDD artifacts and canonical topics. Before changing one, search its stable `topic_key` and retrieve the full current observation. Update that observation when its scope is unchanged; do not create a second competing current artifact. If new evidence changes the prior conclusion, record whether it corrects, supersedes, or is compatible with the prior observation. Preserve immutable artifacts and ordinary historical evidence; delete only accidental, unsafe, or plainly invalid records. Resolve Engram conflict candidates with `mem_judge`; architecture, policy, and decision supersession requires explicit user approval when confidence is below 0.7.
+
+For SDD, change-state topics and canonical manifests are mutable current truth; archive reports and versioned specs remain immutable lineage. Never rewrite immutable lineage to make it look current.
+
 ```
 Step 1: mem_search(query: "sdd/{change-name}/{artifact-type}", project: "{project}") → truncated preview + ID
 Step 2: mem_get_observation(id: {observation-id}) → complete content

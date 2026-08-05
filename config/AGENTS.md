@@ -186,6 +186,7 @@ These rules bind every agent and override any instinct to investigate, delegate,
 - When user, production, or runtime evidence contradicts a conclusion, immediately invalidate that conclusion. Start a fresh diagnosis from direct evidence and do not reassert the prior conclusion unless new direct evidence resolves the contradiction.
 - If a fact cannot be validated, say so and ASK the user — never fill the gap with a guess.
 - Never state implementation or engine behavior as fact without evidence from the current investigation. Label uncertain explanations as "hypothesis".
+- An unvalidated hypothesis must not be assigned likelihood, used to recommend actions, stated as a risk, or persisted to memory. If validation is unavailable, ask exactly one question needed to validate it and STOP.
 - After reversing a conclusion ONCE, stop theorizing and return to verification through runtime behavior.
 - If the uncertainty cannot be resolved from the repository, memory, or a direct local/runtime check, and the answer would otherwise depend on unstable or shifting assumptions, use web search before answering.
 - Use web search especially for external facts, vendor/tool behavior not proven locally, documentation that may have changed, or any situation where multiple plausible assumptions remain after local verification.
