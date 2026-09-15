@@ -38,9 +38,15 @@ PY
 }
 
 current_engram="$(command -v engram 2>/dev/null || true)"
-if [ -n "$current_engram" ] && has_atomic_topic_cas "$current_engram"; then
-  echo "-> Compatible engram already installed: $($current_engram --version)"
-  exit 0
+if [ -n "$current_engram" ]; then
+  current_version="$("$current_engram" --version 2>/dev/null || true)"
+  current_release="${current_version#engram }"
+  current_release="${current_release#v}"
+  required_release="${RELEASE_TAG#v}"
+  if [ "$current_release" = "$required_release" ] && has_atomic_topic_cas "$current_engram"; then
+    echo "-> Pinned engram already installed: $current_version"
+    exit 0
+  fi
 fi
 
 if [ "$(uname -s)" != "Darwin" ]; then
