@@ -87,8 +87,11 @@ main
 
 ```bash
 gh pr view <PR_NUMBER> --json additions,deletions,changedFiles,title,url
-gh pr create --base feat/my-feature --title "feat(scope): focused slice" --body-file pr-body.md
-gh pr create --base feat/my-feature-01-core --title "feat(scope): next focused slice" --body-file pr-body.md
+gh pr create --base feat/my-feature --title "feat(scope): focused slice" --body-file pr-body.md --assignee @me
+gh pr create --base feat/my-feature-01-core --title "feat(scope): next focused slice" --body-file pr-body.md --assignee @me
+
+# Every PR, including a draft, must be assigned before it is reported.
+gh pr view <PR_NUMBER> --json assignees
 ```
 
 ## Reviewer Guidance

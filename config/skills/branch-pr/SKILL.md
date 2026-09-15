@@ -22,6 +22,7 @@ Use this skill when:
 2. **Every PR MUST have exactly one `type:*` label**
 3. **Automated checks must pass** before merge is possible
 4. **Blank PRs without issue linkage will be blocked** by GitHub Actions
+5. **Every PR, including drafts, MUST be assigned to the authenticated GitHub user**
 
 ---
 
@@ -195,7 +196,11 @@ shellcheck scripts/*.sh
 
 # Push and create PR
 git push -u origin feat/my-feature
-gh pr create --title "feat(scope): description" --body "Closes #N"
+gh pr create --title "feat(scope): description" --body "Closes #N" --assignee @me
+
+# Mandatory completion gate: do not report the PR until this includes the
+# authenticated GitHub user (the user represented by @me).
+gh pr view <pr-number> --json assignees
 
 # Add type label to PR
 gh pr edit <pr-number> --add-label "type:feature"
