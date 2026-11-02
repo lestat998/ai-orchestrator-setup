@@ -17,12 +17,12 @@ Planning phases:
 3. Only after BOTH spec and design succeed, launch `sdd-executor` with phase `tasks` and `~/.config/opencode/skills/sdd-tasks/SKILL.md`.
 4. After each successful stage, create or upsert `sdd/$ARGUMENTS/state` as `active` with the complete DAG progress and all known artifact observation IDs. Proposal is one stage; parallel spec+design is one joined stage whose state is written only after BOTH succeed; tasks is one stage. A stage is not complete until its state write succeeds.
 
-- In `interactive` mode: run only the next planning stage (proposal, parallel spec+design, or tasks), persist its active DAG state, present its summary and artifact topic keys, ask whether to adjust or continue, then STOP. Do not launch the following stage until the user confirms.
-- In `auto` mode: run all planning phases back-to-back and present a combined summary after all phases complete.
+- In `interactive` mode: run only the next planning stage (proposal, parallel spec+design, or tasks), validate its child envelope, persist its active DAG state and durable session checkpoint, present its summary and artifact topic keys, ask exactly once whether to adjust or continue, then STOP. Do not launch the following stage until the user confirms.
+- In `auto` mode: validate and checkpoint each stage, run all planning phases back-to-back without asking or pausing, and present a combined summary after all phases complete.
 
 CONTEXT:
 
-- Working directory: delegate repository-root detection to the allowed generic executor; have it run `git rev-parse --show-toplevel 2>/dev/null || pwd` and use the returned path as the authoritative workspace. The primary orchestrator must not run Bash. In OpenCode Desktop (Electron) the parse-time interpolation resolves to the app data directory, not the project.
+- Working directory and Git baseline: delegate observation to the allowed executor for this command. It must run separate Git commands for repository root, branch, HEAD, and porcelain status and return each command/result as verified evidence. If any command fails, record that field as `unknown`; never substitute `pwd` or another fallback. Do not make Git claims, advance a plan, or perform a mutation that depends on an unknown field. Re-observe all four fields immediately before and after every mutation.
 - Current project: call `mem_current_project` and use the exact returned `project` value for every Engram operation and phase launch. Keep the workspace path separate as `actionContext.workspaceRoot`; do not derive project identity from that path.
 - Change name: $ARGUMENTS
 - Execution mode: ask/cache per orchestrator

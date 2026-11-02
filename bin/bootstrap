@@ -6,8 +6,9 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
 
 OC="$HOME/.config/opencode"
-PRESERVE_LIVE=(--exclude node_modules --exclude package.json --exclude package-lock.json --exclude bun.lock)
-STAGE_EXCLUDES=("${PRESERVE_LIVE[@]}" --exclude AGENTS.md)
+PLUGIN_MANIFEST="${PLUGIN_MANIFEST:-$REPO/config/plugin-dependencies.json}"
+PRESERVE_LIVE=(--exclude node_modules --exclude package-lock.json --exclude bun.lock)
+STAGE_EXCLUDES=("${PRESERVE_LIVE[@]}" --exclude package.json --exclude AGENTS.md)
 ENGRAM_BIN="${ENGRAM_BIN:-engram}"
 PLUGIN_VALIDATOR="${PLUGIN_VALIDATOR:-$REPO/bin/lib/verify-engram-plugin.mjs}"
 PROMPT_VALIDATOR="${PROMPT_VALIDATOR:-$REPO/bin/lib/verify-agent-prompts.mjs}"
@@ -138,6 +139,35 @@ PY
   mv "$tmp" "$dst"
 }
 
+# Validate the optional managed plugin dependency manifest. Exit 0 when valid,
+# 2 when absent, 1 when invalid.
+validate_plugin_manifest() {
+  [ -e "$1" ] || [ -L "$1" ] || return 2
+  python3 - "$1" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+try:
+    with open(path) as handle:
+        data = json.load(handle)
+    deps = data.get("dependencies") if isinstance(data, dict) else None
+    if not (
+        data.get("private") is True
+        and data.get("type") == "module"
+        and isinstance(deps, dict)
+        and all(
+            isinstance(name, str) and name and isinstance(spec, str) and spec
+            for name, spec in deps.items()
+        )
+    ):
+        raise ValueError("unexpected manifest shape")
+except (OSError, ValueError, AttributeError) as error:
+    print(f"ERROR: invalid managed plugin dependency manifest {path}: {error}", file=sys.stderr)
+    raise SystemExit(1)
+PY
+}
+
 echo "== ai-orchestrator-setup bootstrap =="
 
 # Build and validate the complete candidate, including the merged AGENTS.md,
@@ -148,6 +178,26 @@ rsync -a --delete "${STAGE_EXCLUDES[@]}" "$REPO/config/" "$STAGE/"
 if [ -f "$OC/AGENTS.md" ]; then
   cp "$OC/AGENTS.md" "$STAGE/AGENTS.md"
 fi
+DEPLOY_EXCLUDES=("${PRESERVE_LIVE[@]}")
+manifest_status=0
+validate_plugin_manifest "$PLUGIN_MANIFEST" || manifest_status=$?
+case "$manifest_status" in
+  0)
+    if [ -d "$OC/package.json" ]; then
+      echo "ERROR: refusing to replace directory $OC/package.json" >&2
+      exit 1
+    fi
+    echo "-> Staging managed plugin dependency manifest as package.json..."
+    cp "$PLUGIN_MANIFEST" "$STAGE/.package.json.tmp"
+    mv -f "$STAGE/.package.json.tmp" "$STAGE/package.json"
+    ;;
+  2)
+    DEPLOY_EXCLUDES+=(--exclude package.json)
+    ;;
+  *)
+    exit 1
+    ;;
+esac
 echo "-> Merging AGENTS.md managed regions into staged candidate (preserving user regions)..."
 splice_agents_md "$AGENTS_SOURCE" "$STAGE/AGENTS.md"
 
@@ -273,7 +323,7 @@ rollback_deployment() {
 
 mkdir -p "$OC"
 echo "-> Installing orchestrator config..."
-if ! rsync -a --delete "${PRESERVE_LIVE[@]}" "$STAGE/" "$OC/"; then
+if ! rsync -a --delete "${DEPLOY_EXCLUDES[@]}" "$STAGE/" "$OC/"; then
   echo "Configuration deployment copy FAILED; rolling back."
   rollback_deployment
   exit 1

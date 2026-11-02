@@ -10,7 +10,7 @@ SDD Session Preflight must already be complete for this session. It must include
 
 CONTEXT:
 
-- Working directory: delegate repository-root detection to the allowed generic read-only reviewer; have it run `git rev-parse --show-toplevel 2>/dev/null || pwd` and use the returned path as the authoritative workspace. The primary orchestrator must not run Bash.
+- Working directory and Git baseline: delegate observation to the allowed executor for this command. It must run separate Git commands for repository root, branch, HEAD, and porcelain status and return each command/result as verified evidence. If any command fails, record that field as `unknown`; never substitute `pwd` or another fallback. Do not make Git claims, advance a plan, or perform a mutation that depends on an unknown field. Re-observe all four fields immediately before and after every mutation.
 - Current project: call `mem_current_project` and use the exact returned `project` value for every Engram read. Keep the workspace path separate as `actionContext.workspaceRoot`; do not derive project identity from that path.
 - Change name: $ARGUMENTS
 

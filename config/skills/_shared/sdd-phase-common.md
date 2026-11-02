@@ -65,9 +65,11 @@ After a phase artifact is persisted successfully, the orchestrator MUST create o
 Every phase MUST return a structured envelope to the orchestrator:
 
 - `status`: `success`, `partial`, or `blocked`
+- `verified_evidence`: the exact commands/checks run and their results; use `None` only when the phase is intentionally evidence-free
 - `executive_summary`: 1-3 sentence summary of what was done
 - `detailed_report`: (optional) full phase output, or omit if already inline
-- `artifacts`: list of Engram topic keys and observation IDs written
+- `artifacts_or_files`: list of Engram topic keys/observation IDs and files written or inspected
+- `remaining_work`: explicit pending work, or `None`
 - `next_recommended`: the next SDD phase to run, or "none"
 - `risks`: risks discovered, or "None"
 - `skill_resolution`: how skills were loaded — `paths-injected` (received exact skill paths from orchestrator), `fallback-registry` (self-loaded paths from registry), `fallback-path` (loaded via SKILL: Load path), or `none` (no skills loaded)
@@ -77,7 +79,9 @@ Example:
 ```markdown
 **Status**: success
 **Summary**: Proposal created for `{change-name}`. Defined scope, approach, and rollback plan.
-**Artifacts**: Engram `sdd/{change-name}/proposal` (observation #{id})
+**Verified Evidence**: Persisted artifact read back from Engram (observation #{id})
+**Artifacts or Files**: Engram `sdd/{change-name}/proposal` (observation #{id})
+**Remaining Work**: Spec, design, and tasks phases
 **Next**: sdd-spec or sdd-design
 **Risks**: None
 **Skill Resolution**: paths-injected — 3 skills (react-19, typescript, tailwind-4)

@@ -63,6 +63,7 @@ class BootstrapTest(unittest.TestCase):
         existing_config=True,
         package_metadata=False,
         deployment_rsync_failure=False,
+        plugin_manifest=None,
     ):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
@@ -192,6 +193,10 @@ class BootstrapTest(unittest.TestCase):
             env["POST_DEPLOY_VALIDATOR"] = str(post_deploy_validator)
         if agents_source is not None:
             env["AGENTS_SOURCE"] = str(agents_source)
+        if plugin_manifest is not None:
+            manifest = base / "plugin-dependencies.json"
+            manifest.write_text(plugin_manifest)
+            env["PLUGIN_MANIFEST"] = str(manifest)
         result = subprocess.run(
             [str(ROOT / "bin" / "bootstrap")],
             cwd=ROOT,
@@ -208,12 +213,12 @@ class BootstrapTest(unittest.TestCase):
         deployed = json.loads((config / "opencode.json").read_text())
         deployed_tui = json.loads((config / "tui.json").read_text())
         self.assertEqual(deployed["compaction"], {"auto": True, "prune": False})
-        self.assertEqual(deployed_tui["plugin"], ["opencode-subagent-statusline"])
+        self.assertEqual(deployed_tui["plugin"], ["~/.config/opencode/tui-plugins/ai-orchestrator-logo.tsx"])
         self.assertEqual(set(deployed["mcp"]), {"context7", "engram", "codegraph", "playwright"})
         self.assertTrue(deployed["mcp"]["playwright"]["enabled"])
         self.assertEqual(
             {name for name, agent in deployed["agent"].items() if agent["mode"] == "primary"},
-            {"ai-orchestrator", "ai-orchestrator-gpt"},
+            {"ai-orchestrator", "ai-orchestrator-gpt", "ai-orchestrator-go"},
         )
         serialized = json.dumps(deployed).lower()
         for forbidden in ("runpod", "slack", "sentry", "clickup", "opencode-dcp"):
@@ -235,7 +240,10 @@ class BootstrapTest(unittest.TestCase):
             package_metadata=True,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual((config / "package.json").read_text(), '{"live": "package"}\n')
+        self.assertEqual(
+            (config / "package.json").read_text(),
+            (ROOT / "config" / "plugin-dependencies.json").read_text(),
+        )
         self.assertEqual((config / "package-lock.json").read_text(), '{"live": "package-lock"}\n')
         self.assertEqual((config / "bun.lock").read_text(), "live bun lock\n")
         self.assertEqual(
@@ -244,6 +252,22 @@ class BootstrapTest(unittest.TestCase):
         )
         self.assertFalse((config / "dcp.jsonc").exists())
         self.assertFalse((config / ".dcp-config-version").exists())
+
+    def test_success_writes_package_json_equal_to_manifest(self):
+        manifest = '{"private": true, "type": "module", "dependencies": {"x": "1.0.0"}}\n'
+        result, config, _, _, _, _ = self.run_bootstrap(package_metadata=True, plugin_manifest=manifest)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((config / "package.json").read_text(), manifest)
+
+    def test_invalid_manifest_fails_without_touching_live_config(self):
+        invalid = '{"private": true, "type": "module", "dependencies": {"x": ""}}\n'
+        result, config, backup, home, _, log = self.run_bootstrap(package_metadata=True, plugin_manifest=invalid)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("invalid managed plugin dependency manifest", result.stderr)
+        self.assertEqual((config / "package.json").read_text(), '{"live": "package"}\n')
+        self.assertEqual((config / "keep.txt").read_text(), "active-before\n")
+        self.assertEqual(list((home / ".config").glob("opencode.backup.20*")), [])
+        self.assertFalse(log.exists())
 
     def test_updates_homebrew_opencode_before_deployment(self):
         result, _, _, _, _, log = self.run_bootstrap(brew_managed=True)
@@ -455,9 +479,10 @@ class BootstrapTest(unittest.TestCase):
 
     def test_install_engram_only_early_exits_for_exact_capable_pin(self):
         for version, capability, should_exit in (
-            ("engram 1.20.0-cas.3", "present", True),
+            ("engram 1.20.0-cas.4", "present", True),
+            ("engram 1.20.0-cas.3", "present", False),
             ("engram 1.19.0", "present", False),
-            ("engram 1.20.0-cas.3", "missing", False),
+            ("engram 1.20.0-cas.4", "missing", False),
         ):
             with self.subTest(version=version, capability=capability):
                 with tempfile.TemporaryDirectory() as temp:

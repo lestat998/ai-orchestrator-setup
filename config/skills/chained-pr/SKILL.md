@@ -21,7 +21,6 @@ Load this skill when a planned PR may exceed **400 changed lines**, SDD forecast
 - In Feature Branch Chain, create a draft/no-merge tracker PR; child PR #1 targets the tracker branch, later children target the immediate parent branch.
 - Treat polluted diffs as base bugs: retarget or rebase until only the current work unit appears.
 - Do not mix chain strategies after the user chooses one.
-- Assign every tracker and child PR to the authenticated GitHub user with `--assignee @me`, then verify the assignee before reporting it.
 
 ## Decision Gates
 

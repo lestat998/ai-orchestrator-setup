@@ -4,7 +4,7 @@ An opinionated public [OpenCode](https://opencode.ai) configuration with persist
 
 ## Included
 
-- **Two provider stacks:** `ai-orchestrator` uses Claude models and `ai-orchestrator-gpt` uses OpenAI models. Each stack has matching read-only review, surgical-fix, and SDD subagents.
+- **Three provider stacks:** `ai-orchestrator` uses Claude models, `ai-orchestrator-gpt` uses OpenAI models, and `ai-orchestrator-go` uses OpenCode Go models. Each stack has matching read-only review, surgical-fix, and SDD subagents.
 - **Engram:** persistent project memory, session tracking, prompt capture, save nudges, and native-compaction recovery.
 - **CodeGraph:** structural codebase queries for call flow, dependencies, and impact analysis.
 - **Context7:** current library and framework documentation.
@@ -30,10 +30,10 @@ Bootstrap performs these steps in order:
 
 1. Builds a complete staged candidate, merging managed `AGENTS.md` protocol regions while preserving user-owned persona, language override, and freeform content.
 2. Validates the staged native-compaction, Engram plugin, agent prompts, JSON, and portable paths before installation or deployment side effects.
-3. Installs or updates the checksum-verified Engram `v1.20.0-cas.3` release unless the installed binary is exactly that version and satisfies the required atomic topic CAS capability contract.
+3. Installs or updates the checksum-verified Engram `v1.20.0-cas.4` release unless the installed binary is exactly that version and satisfies the required atomic topic CAS capability contract.
 4. Installs CodeGraph when missing.
 5. Upgrades OpenCode only when the installed binary is managed by the Homebrew `opencode` formula. Other installations are left untouched with a warning; a missing installation also produces a warning.
-6. Creates a collision-safe backup of the current OpenCode config and deploys only the validated staged candidate, preserving live package metadata and `node_modules` while deleting stale managed files such as DCP configuration.
+6. Creates a collision-safe backup of the current OpenCode config and deploys only the validated staged candidate, writing `config/plugin-dependencies.json` (pins `@opencode/plugin` for OpenCode 2.x) to the live `package.json`, preserving `node_modules` and lock files, and deleting stale managed files such as DCP configuration.
 7. Verifies the copied configuration and restores the backup, or removes a partial fresh installation, if the deployment copy or post-copy validation fails.
 
 The Engram database under `~/.engram` is never deleted. Bootstrap does not import repository memory.
@@ -46,17 +46,19 @@ Restart OpenCode after every bootstrap run. Configuration, prompts, agent defini
 | --- | --- | --- |
 | `ai-orchestrator` | Anthropic through `opencode-with-claude` | `readonly-reviewer`, `fix-executor`, `sdd-executor` |
 | `ai-orchestrator-gpt` | OpenAI OAuth | `readonly-reviewer-gpt`, `fix-executor-gpt`, `sdd-executor-gpt` |
+| `ai-orchestrator-go` | OpenCode Go (`opencode-go`) | `readonly-reviewer-go`, `fix-executor-go`, `sdd-executor-go` |
 
-Both primaries may use OpenCode's shared `general` / `general-purpose` agent for implementation. Read-only exploration, repository mapping, impact analysis, and requirements research route to the active stack's read-only reviewer.
+Implementation and confirmed fixes route to the active stack's `fix-executor`, and SDD work to its `sdd-executor`. Read-only exploration, repository mapping, impact analysis, and requirements research route to the active stack's read-only reviewer.
 
 Launch a stack directly:
 
 ```bash
 opencode --agent ai-orchestrator
 opencode --agent ai-orchestrator-gpt
+opencode --agent ai-orchestrator-go
 ```
 
-The GPT stack defaults to `openai/gpt-5.6-sol`. Use `opencode models openai` to inspect models available to your account before changing agent model values.
+The Claude stack uses `anthropic/claude-opus-5-5` (primary, reviewer) and `anthropic/claude-sonnet-5-5` (executors). The GPT stack defaults to `openai/gpt-6.1-sol`. The Go stack uses `opencode-go/glm-5.3` (primary), `opencode-go/kimi-k2.7-code` (reviewer, SDD executor), and `opencode-go/minimax-m3` (fix executor). Use `opencode models openai` to inspect models available to your account before changing agent model values.
 
 ## Native Compaction
 
@@ -99,10 +101,12 @@ ai-orchestrator-setup/
 │       └── verify-engram-plugin.mjs
 ├── config/
 │   ├── AGENTS.md                  # concise persona and managed protocols
-│   ├── opencode.json              # two stacks, native compaction, public MCPs
-│   ├── prompts/                   # Claude and GPT orchestrator prompts
+│   ├── cli.json
+│   ├── plugin-dependencies.json   # pins @opencode/plugin for OpenCode 2.x
+│   ├── opencode.json              # three stacks, native compaction, public MCPs
+│   ├── prompts/                   # Claude, GPT, and Go orchestrator prompts
 │   ├── commands/                  # slash commands
-│   ├── plugins/                   # Engram and skill-registry adapters
+│   ├── plugins/                   # Engram, skill-registry, and rule-recall-guard adapters
 │   └── skills/                    # SDD and collaboration skills
 ├── test/test_bootstrap.py
 └── README.md

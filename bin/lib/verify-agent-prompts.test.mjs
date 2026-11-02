@@ -11,7 +11,7 @@ import { verifyAgentPrompts } from "./verify-agent-prompts.mjs";
 const configRoot = fileURLToPath(new URL("../../config", import.meta.url));
 const verifierPath = fileURLToPath(new URL("./verify-agent-prompts.mjs", import.meta.url));
 
-test("accepts the public two-stack configuration", () => {
+test("accepts the public three-stack configuration", () => {
   assert.deepEqual(verifyAgentPrompts(configRoot), []);
   assert.doesNotThrow(() => execFileSync(process.execPath, [verifierPath, configRoot]));
 });
@@ -31,6 +31,21 @@ test("detects stale topology, unsafe MCPs, and missing request gates", () => {
     assert.ok(failures.includes("unsupported-agent-topology"));
     assert.ok(failures.includes("public-mcp-topology"));
     assert.ok(failures.includes("prompts/orchestrator.md:request-before-context"));
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+  }
+});
+
+test("detects undefined task routes in the go stack", () => {
+  const fixture = mkdtempSync(join(tmpdir(), "verify-agent-prompts-"));
+  try {
+    cpSync(configRoot, fixture, { recursive: true });
+    const configPath = join(fixture, "opencode.json");
+    const config = JSON.parse(readFileSync(configPath, "utf8"));
+    config.agent["ai-orchestrator-go"].permission = { task: { "missing-agent": "allow" } };
+    writeFileSync(configPath, JSON.stringify(config));
+    const failures = verifyAgentPrompts(fixture);
+    assert.ok(failures.includes("undefined-task-route:ai-orchestrator-go:missing-agent"));
   } finally {
     rmSync(fixture, { recursive: true, force: true });
   }

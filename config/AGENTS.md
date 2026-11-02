@@ -142,12 +142,23 @@ Do not skip step 1.
 
 For structural/codebase questions (arch, call flow, dependencies, symbol references, impact analysis, "how does X work"): use CodeGraph before broad Read/Grep/Glob.
 
-1. Resolve project root with `git rev-parse --show-toplevel || pwd`. Never init in `$HOME`, tmp, or non-project folders.
+1. Resolve project root with a standalone `git rev-parse --show-toplevel` observation. If it fails, the Git root is `unknown`; never substitute `pwd`, initialize CodeGraph, make Git claims, or perform Git mutations from that result.
 2. Check for `<root>/.codegraph/`. If missing in a real project, run `codegraph init <root>` (don't ask — do it), then use `codegraph_explore`.
 3. Fall back to Read/Grep/Glob only after CodeGraph init or use fails, and explain the fallback briefly.
 <!-- /ai-orchestrator:codegraph-guidance -->
 
-<!-- user-override: language -->
-## Reply Language Override
+<!-- ai-orchestrator:evidence-first-delegation -->
+## Evidence-First Delegation and Recovery
 
-Default reply language is **English**. Always reply in English regardless of the user's language. No Spanish greetings, interjections, or fragments.
+- Scope every delegation to one coherent work unit: a single file, or a single behavior with its test. Do not bundle multiple files, many behaviors, or an entire feature into one `task` call. Split the work and delegate the pieces in sequence.
+- Every `task` prompt MUST state an explicit budget and exit condition: which files the sub-agent may touch, an attempt cap for any verify-fix loop (default 3), and an instruction to return the `partial` envelope with completed work rather than keep going. A delegation that does not state a budget is invalid — do not send it.
+- Rule recall before every delegation: before each `task` call, run `mem_search` with `type: "preference"` and the concrete terms from the user's message or pasted content (commands, file paths, identifiers, and domain words such as `db:migrate`, `commit`, or `PR`). Skip results titled "Superseded" and records that only report a past violation; open the matching rules with `mem_get_observation` and copy only the prohibitions and requirements that apply to this task into the prompt under an `Applicable rules:` section that cites each memory ID, or states `none found (query: ...)`. A delegation without an `Applicable rules:` section is invalid — do not send it; the `rule-recall-guard` plugin rejects it. Never preload unrelated memories; recall is per task, not per session.
+- Never instruct a sub-agent to "iterate until green", "repeat until the tests pass", or any other open-ended loop. Give a fixed attempt cap and require a report when it is exhausted.
+- Treat a `partial` return as normal progress, not failure. Record what landed, then decide with the user whether to re-delegate the remainder. Never immediately re-send the same oversized task.
+- Route work only to agents defined in `opencode.json`. Every delegated child must end with a structured text envelope containing `status`, `verified_evidence`, `artifacts_or_files`, `remaining_work`, and `next_recommended`; its final action must not be a tool call.
+- Empty, malformed, tool-result-only, or task-mismatched output is `partial` and unverified. Do not use it for completion, Git claims, or plan advancement. Re-observe current state before resuming or report the mismatch and stop.
+- A tool result that does not correspond to what you requested — a different file than the path you asked for, a different command's output, or content that cannot be what that path contains — is a failed observation, not data. Do not use it, do not infer from it, and do not treat anything it appeared to confirm as verified. Retry once, naming the exact path and checking that the returned content matches it. If it mismatches again, treat that fact as `unknown`: do not delegate around it, do not ask a sub-agent to "just read it directly" to paper over the gap, and do not state a conclusion that depends on it. Report the mismatch and stop.
+- Git root, branch, HEAD, and porcelain status require fresh successful observations. A failed field is `unknown`, never a fallback. Do not make a dependent claim or mutation while it is unknown; re-observe all four immediately before and after a mutation.
+- After every accepted unit or SDD phase, persist `orchestrator/session-checkpoint/{session_id}` through `mem_save` with objective, execution mode, verified Git baseline, completed/current/pending units, delegated task ID, and exact next action. At session start or after compaction, retrieve that checkpoint with `mem_search` and `mem_get_observation`, then re-observe required state before continuing.
+- `auto` mode proceeds after an accepted phase without a user pause. `interactive` mode pauses exactly once after the accepted phase.
+<!-- /ai-orchestrator:evidence-first-delegation -->

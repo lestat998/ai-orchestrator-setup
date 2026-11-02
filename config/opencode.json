@@ -1,7 +1,7 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": [
-    "opencode-with-claude"
+  "plugins": [
+    "opencode-with-claude@1.11.2"
   ],
   "compaction": {
     "auto": true,
@@ -292,7 +292,7 @@
   },
   "agent": {
     "ai-orchestrator": {
-      "model": "anthropic/claude-opus-5",
+      "model": "anthropic/claude-opus-5-5",
       "description": "AI Orchestrator - handles bounded work directly and delegates larger work",
       "mode": "primary",
       "permission": {
@@ -301,8 +301,6 @@
         "question": "allow",
         "task": {
           "*": "deny",
-          "general": "allow",
-          "general-purpose": "allow",
           "readonly-reviewer": "allow",
           "fix-executor": "allow",
           "sdd-executor": "allow"
@@ -319,22 +317,24 @@
       }
     },
     "readonly-reviewer": {
-      "model": "anthropic/claude-opus-5",
+      "model": "anthropic/claude-opus-5-5",
       "description": "Generic read-only reviewer — handles R1-R4 review roles and judgment-day blind review",
       "hidden": true,
       "mode": "subagent",
-      "prompt": "You are a focused read-only reviewer. Your specific role rules are provided in the task prompt below. Do NOT modify any code — your job is ONLY to find problems and report findings with the severity and format requested. Do NOT delegate further.",
+      "steps": 40,
+      "prompt": "You are a focused read-only reviewer. Your specific role rules are provided in the task prompt below. Do NOT modify any code — your job is ONLY to find problems and report findings with the severity and format requested. Do NOT delegate further. EXECUTION BUDGET. You have a hard iteration ceiling; when it is reached the runtime cuts you off mid-work. Never let that be your exit. Budget your own work: if the task needs more iterations than you have, complete the most valuable coherent slice first. Do not retry a failing command, test, or build more than 3 times — if it still fails, stop and report the failure with its exact output. Never loop on the same error. Stop on your own before the ceiling and report. ALWAYS finish with a structured text envelope as plain text, never a tool call: status (success, partial, or blocked), verified_evidence, artifacts_or_files, remaining_work, next_recommended. Returning `partial` with real progress and an accurate remaining_work is a correct, expected outcome. Continuing silently is a failure.",
       "tools": {
         "bash": true,
         "read": true
       }
     },
     "fix-executor": {
-      "model": "anthropic/claude-sonnet-5",
+      "model": "anthropic/claude-sonnet-5-5",
       "description": "Generic surgical fix executor — applies confirmed fixes from reviews and judgment-day",
       "hidden": true,
       "mode": "subagent",
-      "prompt": "You are a surgical fix agent. Execute the fix instructions provided in the task prompt exactly. Do NOT delegate further. Fix ONLY the confirmed issues listed — do NOT refactor beyond what is strictly needed.",
+      "steps": 60,
+      "prompt": "You are a surgical fix agent. Execute the fix instructions provided in the task prompt exactly. Do NOT delegate further. Fix ONLY the confirmed issues listed — do NOT refactor beyond what is strictly needed. EXECUTION BUDGET. You have a hard iteration ceiling; when it is reached the runtime cuts you off mid-work. Never let that be your exit. Budget your own work: if the task needs more iterations than you have, complete the most valuable coherent slice first. Do not retry a failing command, test, or build more than 3 times — if it still fails, stop and report the failure with its exact output. Never loop on the same error. Stop on your own before the ceiling and report. ALWAYS finish with a structured text envelope as plain text, never a tool call: status (success, partial, or blocked), verified_evidence, artifacts_or_files, remaining_work, next_recommended. Returning `partial` with real progress and an accurate remaining_work is a correct, expected outcome. Continuing silently is a failure.",
       "tools": {
         "bash": true,
         "edit": true,
@@ -343,11 +343,12 @@
       }
     },
     "sdd-executor": {
-      "model": "anthropic/claude-sonnet-5",
+      "model": "anthropic/claude-sonnet-5-5",
       "description": "Generic SDD executor — runs any SDD phase (explore, propose, spec, design, tasks, apply, verify, archive, init, onboard)",
       "hidden": true,
       "mode": "subagent",
-      "prompt": "You are an SDD phase executor. Do this phase's work yourself. Do NOT delegate, call task, or launch sub-agents. Read the SKILL.md file path provided in the task prompt and follow it exactly. The task prompt tells you which phase to run and provides all context.",
+      "steps": 80,
+      "prompt": "You are an SDD phase executor. Do this phase's work yourself. Do NOT delegate, call task, or launch sub-agents. Read the SKILL.md file path provided in the task prompt and follow it exactly. The task prompt tells you which phase to run and provides all context. EXECUTION BUDGET. You have a hard iteration ceiling; when it is reached the runtime cuts you off mid-work. Never let that be your exit. Budget your own work: if the task needs more iterations than you have, complete the most valuable coherent slice first. Do not retry a failing command, test, or build more than 3 times — if it still fails, stop and report the failure with its exact output. Never loop on the same error. Stop on your own before the ceiling and report. ALWAYS finish with a structured text envelope as plain text, never a tool call: status (success, partial, or blocked), verified_evidence, artifacts_or_files, remaining_work, next_recommended. Returning `partial` with real progress and an accurate remaining_work is a correct, expected outcome. Continuing silently is a failure.",
       "tools": {
         "bash": true,
         "edit": true,
@@ -356,22 +357,24 @@
       }
     },
     "readonly-reviewer-gpt": {
-      "model": "openai/gpt-5.6-sol",
+      "model": "openai/gpt-6.1-sol",
       "description": "Generic read-only reviewer — handles R1-R4 review roles and judgment-day blind review",
       "hidden": true,
       "mode": "subagent",
-      "prompt": "You are a focused read-only reviewer. Your specific role rules are provided in the task prompt below. Do NOT modify any code — your job is ONLY to find problems and report findings with the severity and format requested. Do NOT delegate further.",
+      "steps": 40,
+      "prompt": "You are a focused read-only reviewer. Your specific role rules are provided in the task prompt below. Do NOT modify any code — your job is ONLY to find problems and report findings with the severity and format requested. Do NOT delegate further. EXECUTION BUDGET. You have a hard iteration ceiling; when it is reached the runtime cuts you off mid-work. Never let that be your exit. Budget your own work: if the task needs more iterations than you have, complete the most valuable coherent slice first. Do not retry a failing command, test, or build more than 3 times — if it still fails, stop and report the failure with its exact output. Never loop on the same error. Stop on your own before the ceiling and report. ALWAYS finish with a structured text envelope as plain text, never a tool call: status (success, partial, or blocked), verified_evidence, artifacts_or_files, remaining_work, next_recommended. Returning `partial` with real progress and an accurate remaining_work is a correct, expected outcome. Continuing silently is a failure.",
       "tools": {
         "bash": true,
         "read": true
       }
     },
     "fix-executor-gpt": {
-      "model": "openai/gpt-5.6-sol",
+      "model": "openai/gpt-6.1-sol",
       "description": "Generic surgical fix executor — applies confirmed fixes from reviews and judgment-day",
       "hidden": true,
       "mode": "subagent",
-      "prompt": "You are a surgical fix agent. Execute the fix instructions provided in the task prompt exactly. Do NOT delegate further. Fix ONLY the confirmed issues listed — do NOT refactor beyond what is strictly needed.",
+      "steps": 60,
+      "prompt": "You are a surgical fix agent. Execute the fix instructions provided in the task prompt exactly. Do NOT delegate further. Fix ONLY the confirmed issues listed — do NOT refactor beyond what is strictly needed. EXECUTION BUDGET. You have a hard iteration ceiling; when it is reached the runtime cuts you off mid-work. Never let that be your exit. Budget your own work: if the task needs more iterations than you have, complete the most valuable coherent slice first. Do not retry a failing command, test, or build more than 3 times — if it still fails, stop and report the failure with its exact output. Never loop on the same error. Stop on your own before the ceiling and report. ALWAYS finish with a structured text envelope as plain text, never a tool call: status (success, partial, or blocked), verified_evidence, artifacts_or_files, remaining_work, next_recommended. Returning `partial` with real progress and an accurate remaining_work is a correct, expected outcome. Continuing silently is a failure.",
       "tools": {
         "bash": true,
         "edit": true,
@@ -380,11 +383,12 @@
       }
     },
     "sdd-executor-gpt": {
-      "model": "openai/gpt-5.6-sol",
+      "model": "openai/gpt-6.1-sol",
       "description": "Generic SDD executor — runs any SDD phase (explore, propose, spec, design, tasks, apply, verify, archive, init, onboard)",
       "hidden": true,
       "mode": "subagent",
-      "prompt": "You are an SDD phase executor. Do this phase's work yourself. Do NOT delegate, call task, or launch sub-agents. Read the SKILL.md file path provided in the task prompt and follow it exactly. The task prompt tells you which phase to run and provides all context.",
+      "steps": 80,
+      "prompt": "You are an SDD phase executor. Do this phase's work yourself. Do NOT delegate, call task, or launch sub-agents. Read the SKILL.md file path provided in the task prompt and follow it exactly. The task prompt tells you which phase to run and provides all context. EXECUTION BUDGET. You have a hard iteration ceiling; when it is reached the runtime cuts you off mid-work. Never let that be your exit. Budget your own work: if the task needs more iterations than you have, complete the most valuable coherent slice first. Do not retry a failing command, test, or build more than 3 times — if it still fails, stop and report the failure with its exact output. Never loop on the same error. Stop on your own before the ceiling and report. ALWAYS finish with a structured text envelope as plain text, never a tool call: status (success, partial, or blocked), verified_evidence, artifacts_or_files, remaining_work, next_recommended. Returning `partial` with real progress and an accurate remaining_work is a correct, expected outcome. Continuing silently is a failure.",
       "tools": {
         "bash": true,
         "edit": true,
@@ -393,7 +397,7 @@
       }
     },
     "ai-orchestrator-gpt": {
-      "model": "openai/gpt-5.6-sol",
+      "model": "openai/gpt-6.1-sol",
       "description": "AI Orchestrator - handles bounded work directly and delegates larger work",
       "mode": "primary",
       "permission": {
@@ -402,14 +406,77 @@
         "question": "allow",
         "task": {
           "*": "deny",
-          "general": "allow",
-          "general-purpose": "allow",
           "readonly-reviewer-gpt": "allow",
           "fix-executor-gpt": "allow",
           "sdd-executor-gpt": "allow"
         }
       },
       "prompt": "{file:./prompts/orchestrator-gpt.md}",
+      "tools": {
+        "bash": true,
+        "edit": true,
+        "question": true,
+        "read": true,
+        "task": true,
+        "write": true
+      }
+    },
+    "readonly-reviewer-go": {
+      "model": "opencode-go/kimi-k2.7-code",
+      "description": "Generic read-only reviewer — handles R1-R4 review roles and judgment-day blind review",
+      "hidden": true,
+      "mode": "subagent",
+      "steps": 40,
+      "prompt": "You are a focused read-only reviewer. Your specific role rules are provided in the task prompt below. Do NOT modify any code — your job is ONLY to find problems and report findings with the severity and format requested. Do NOT delegate further. EXECUTION BUDGET. You have a hard iteration ceiling; when it is reached the runtime cuts you off mid-work. Never let that be your exit. Budget your own work: if the task needs more iterations than you have, complete the most valuable coherent slice first. Do not retry a failing command, test, or build more than 3 times — if it still fails, stop and report the failure with its exact output. Never loop on the same error. Stop on your own before the ceiling and report. ALWAYS finish with a structured text envelope as plain text, never a tool call: status (success, partial, or blocked), verified_evidence, artifacts_or_files, remaining_work, next_recommended. Returning `partial` with real progress and an accurate remaining_work is a correct, expected outcome. Continuing silently is a failure.",
+      "tools": {
+        "bash": true,
+        "read": true
+      }
+    },
+    "fix-executor-go": {
+      "model": "opencode-go/minimax-m3",
+      "description": "Generic surgical fix executor — applies confirmed fixes from reviews and judgment-day",
+      "hidden": true,
+      "mode": "subagent",
+      "steps": 60,
+      "prompt": "You are a surgical fix agent. Execute the fix instructions provided in the task prompt exactly. Do NOT delegate further. Fix ONLY the confirmed issues listed — do NOT refactor beyond what is strictly needed. EXECUTION BUDGET. You have a hard iteration ceiling; when it is reached the runtime cuts you off mid-work. Never let that be your exit. Budget your own work: if the task needs more iterations than you have, complete the most valuable coherent slice first. Do not retry a failing command, test, or build more than 3 times — if it still fails, stop and report the failure with its exact output. Never loop on the same error. Stop on your own before the ceiling and report. ALWAYS finish with a structured text envelope as plain text, never a tool call: status (success, partial, or blocked), verified_evidence, artifacts_or_files, remaining_work, next_recommended. Returning `partial` with real progress and an accurate remaining_work is a correct, expected outcome. Continuing silently is a failure.",
+      "tools": {
+        "bash": true,
+        "edit": true,
+        "read": true,
+        "write": true
+      }
+    },
+    "sdd-executor-go": {
+      "model": "opencode-go/kimi-k2.7-code",
+      "description": "Generic SDD executor — runs any SDD phase (explore, propose, spec, design, tasks, apply, verify, archive, init, onboard)",
+      "hidden": true,
+      "mode": "subagent",
+      "steps": 80,
+      "prompt": "You are an SDD phase executor. Do this phase's work yourself. Do NOT delegate, call task, or launch sub-agents. Read the SKILL.md file path provided in the task prompt and follow it exactly. The task prompt tells you which phase to run and provides all context. EXECUTION BUDGET. You have a hard iteration ceiling; when it is reached the runtime cuts you off mid-work. Never let that be your exit. Budget your own work: if the task needs more iterations than you have, complete the most valuable coherent slice first. Do not retry a failing command, test, or build more than 3 times — if it still fails, stop and report the failure with its exact output. Never loop on the same error. Stop on your own before the ceiling and report. ALWAYS finish with a structured text envelope as plain text, never a tool call: status (success, partial, or blocked), verified_evidence, artifacts_or_files, remaining_work, next_recommended. Returning `partial` with real progress and an accurate remaining_work is a correct, expected outcome. Continuing silently is a failure.",
+      "tools": {
+        "bash": true,
+        "edit": true,
+        "read": true,
+        "write": true
+      }
+    },
+    "ai-orchestrator-go": {
+      "model": "opencode-go/glm-5.3",
+      "description": "AI Orchestrator - handles bounded work directly and delegates larger work",
+      "mode": "primary",
+      "permission": {
+        "bash": "allow",
+        "edit": "allow",
+        "question": "allow",
+        "task": {
+          "*": "deny",
+          "readonly-reviewer-go": "allow",
+          "fix-executor-go": "allow",
+          "sdd-executor-go": "allow"
+        }
+      },
+      "prompt": "{file:./prompts/orchestrator-go.md}",
       "tools": {
         "bash": true,
         "edit": true,

@@ -1,26 +1,38 @@
 /**
- * Engram — OpenCode plugin adapter
+ * Engram — OpenCode v2 plugin adapter
  *
  * Thin layer that connects OpenCode's event system to the Engram Go binary.
  * The Go binary runs as a local HTTP server and handles all persistence.
  *
  * Flow:
- *   OpenCode events → this plugin → HTTP calls → engram serve → SQLite
+ *   OpenCode events and hooks → this plugin → HTTP calls → engram serve → SQLite
+ *
+ * Plugin contract (OpenCode v2):
+ *   The module default-exports `{ id, setup(ctx) }`. `setup` registers hooks on
+ *   the owning domains and returns a cleanup function. v1 hook mapping:
+ *     event                               → ctx.event.subscribe()
+ *     chat.message                        → ctx.session.hook("prompt")
+ *     tool.execute.after                  → ctx.tool.hook("execute.after")
+ *     experimental.chat.system.transform  → ctx.session.hook("context")
+ *     experimental.session.compacting     → ctx.session.hook("compaction")
  *
  * Session resilience:
  *   Uses `ensureSession()` before any DB write. This means sessions are
  *   created on-demand — even if the plugin was loaded after the session
  *   started (restart, reconnect, etc.). The session ID comes from OpenCode's
- *   hooks (input.sessionID) rather than relying on a session.created event.
+ *   hooks (event.sessionID) rather than relying on a session.created event.
  */
 
-import type { Plugin } from "@opencode-ai/plugin"
+import type { Plugin } from "@opencode/plugin"
+import { execFileSync, spawn } from "node:child_process"
+import { accessSync, constants } from "node:fs"
+import { delimiter, join } from "node:path"
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
 const ENGRAM_PORT = parseInt(process.env.ENGRAM_PORT ?? "7437")
 const ENGRAM_URL = `http://127.0.0.1:${ENGRAM_PORT}`
-const ENGRAM_BIN = process.env.ENGRAM_BIN ?? Bun.which("engram") ?? "/opt/homebrew/bin/engram"
+const ENGRAM_BIN = process.env.ENGRAM_BIN ?? findExecutable("engram") ?? "/opt/homebrew/bin/engram"
 
 // Engram's own MCP tools — don't count these as "tool calls" for session stats
 const ENGRAM_TOOLS = new Set([
@@ -28,8 +40,6 @@ const ENGRAM_TOOLS = new Set([
   "mem_save",
   "mem_update",
   "mem_delete",
-  "mem_review",
-  "mem_judge",
   "mem_suggest_topic_key",
   "mem_save_prompt",
   "mem_session_summary",
@@ -40,6 +50,12 @@ const ENGRAM_TOOLS = new Set([
   "mem_session_start",
   "mem_session_end",
 ])
+
+// Delegation tools whose output is passively captured. OpenCode v2 names the
+// delegation tool "subagent"; v1 called it "task".
+const DELEGATION_TOOLS = new Set(["subagent", "task"])
+
+const SESSION_LOOKUP_TIMEOUT_MS = 1000
 
 // ─── HTTP Client ─────────────────────────────────────────────────────────────
 
@@ -73,30 +89,53 @@ async function isEngramRunning(): Promise<boolean> {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+function findExecutable(name: string): string | undefined {
+  for (const dir of (process.env.PATH ?? "").split(delimiter)) {
+    if (!dir) continue
+    const candidate = join(dir, name)
+    try {
+      accessSync(candidate, constants.X_OK)
+      return candidate
+    } catch {}
+  }
+  return undefined
+}
+
+function runGit(directory: string, args: string[]): string {
+  try {
+    return execFileSync("git", ["-C", directory, ...args], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim()
+  } catch {
+    return ""
+  }
+}
+
 function extractProjectName(directory: string): string {
   // Try git remote origin URL
-  try {
-    const result = Bun.spawnSync(["git", "-C", directory, "remote", "get-url", "origin"])
-    if (result.exitCode === 0) {
-      const url = result.stdout?.toString().trim()
-      if (url) {
-        const name = url.replace(/\.git$/, "").split(/[/:]/).pop()
-        if (name) return name
-      }
-    }
-  } catch {}
+  const url = runGit(directory, ["remote", "get-url", "origin"])
+  if (url) {
+    const name = url.replace(/\.git$/, "").split(/[/:]/).pop()
+    if (name) return name
+  }
 
   // Fallback: git root directory name (works in worktrees)
-  try {
-    const result = Bun.spawnSync(["git", "-C", directory, "rev-parse", "--show-toplevel"])
-    if (result.exitCode === 0) {
-      const root = result.stdout?.toString().trim()
-      if (root) return root.split("/").pop() ?? "unknown"
-    }
-  } catch {}
+  const root = runGit(directory, ["rev-parse", "--show-toplevel"])
+  if (root) return root.split("/").pop() ?? "unknown"
 
   // Final fallback: cwd basename
   return directory.split("/").pop() ?? "unknown"
+}
+
+function startDetached(command: string[], cwd?: string): void {
+  try {
+    const child = spawn(command[0], command.slice(1), { cwd, stdio: "ignore" })
+    child.on("error", () => {})
+    child.unref()
+  } catch {
+    // Binary not found or can't start — plugin will silently no-op
+  }
 }
 
 function truncate(str: string, max: number): string {
@@ -114,143 +153,180 @@ function stripPrivateTags(str: string): string {
   return str.replace(/<private>[\s\S]*?<\/private>/gi, "[REDACTED]").trim()
 }
 
-// ─── Plugin Export ───────────────────────────────────────────────────────────
+type SystemPart = { type: "text"; text: string }
 
-export const Engram: Plugin = async (ctx) => {
-  const oldProject = ctx.directory.split("/").pop() ?? "unknown"
-  const project = extractProjectName(ctx.directory)
-
-  // Track tool counts per session (in-memory only, not critical)
-  const toolCounts = new Map<string, number>()
-
-  // Track last nudge time per session to debounce save reminders
-  const lastNudgeTime = new Map<string, number>() // sessionID -> epoch seconds
-
-  // Track which sessions we've already ensured exist in engram
-  const knownSessions = new Set<string>()
-
-  // Track sub-agent session IDs so we can suppress their tool-hook registrations.
-  // Sub-agents (Task() calls) have a parentID or a title ending in " subagent)".
-  // We must not register them as top-level Engram sessions — they cause session
-  // inflation (e.g. 170 sessions for 1 real conversation, issue #116).
-  const subAgentSessions = new Set<string>()
-
-  /**
-   * Ensure a session exists in engram. Idempotent — calls POST /sessions
-   * which uses INSERT OR IGNORE. Safe to call multiple times.
-   *
-   * Silently skips sub-agent sessions (tracked in `subAgentSessions`).
-   */
-  async function ensureSession(sessionId: string): Promise<void> {
-    if (!sessionId || knownSessions.has(sessionId)) return
-    // Do not register sub-agent sessions in Engram (issue #116).
-    if (subAgentSessions.has(sessionId)) return
-    knownSessions.add(sessionId)
-    await engramFetch("/sessions", {
-      method: "POST",
-      body: {
-        id: sessionId,
-        project,
-        directory: ctx.directory,
-      },
-    })
+/** Appends text to the last system part, or adds a part when there is none. */
+function appendToSystem(system: SystemPart[], text: string): void {
+  const last = system[system.length - 1]
+  if (last) {
+    system[system.length - 1] = { ...last, text: last.text + text }
+  } else {
+    system.push({ type: "text", text: text.trimStart() })
   }
+}
 
-  // Try to start engram server if not running
-  const running = await isEngramRunning()
-  if (!running) {
-    try {
-      Bun.spawn([ENGRAM_BIN, "serve"], {
-        stdout: "ignore",
-        stderr: "ignore",
-        stdin: "ignore",
-      })
-      await new Promise((r) => setTimeout(r, 500))
-    } catch {
-      // Binary not found or can't start — plugin will silently no-op
+function toolResultText(result: any): string {
+  if (!result) return ""
+  if (typeof result.content === "string") return result.content
+  if (Array.isArray(result.content)) {
+    const text = result.content
+      .filter((part: any) => part?.type === "text")
+      .map((part: any) => part.text ?? "")
+      .join("\n")
+    if (text) return text
+  }
+  return JSON.stringify(result)
+}
+
+// ─── Plugin Definition ───────────────────────────────────────────────────────
+
+const EngramPlugin: Plugin.Plugin = {
+  id: "engram",
+  async setup(ctx) {
+    const directory: string = ctx.location.directory
+    const oldProject = directory.split("/").pop() ?? "unknown"
+    const project = extractProjectName(directory)
+
+    // Track tool counts per session (in-memory only, not critical)
+    const toolCounts = new Map<string, number>()
+
+    // Track last nudge time per session to debounce save reminders
+    const lastNudgeTime = new Map<string, number>() // sessionID -> epoch seconds
+
+    // Track which sessions we've already ensured exist in engram
+    const knownSessions = new Set<string>()
+
+    // Track sub-agent session IDs so we can suppress their tool-hook registrations.
+    // Sub-agents (delegation calls) have a parentID or a title ending in " subagent)".
+    // We must not register them as top-level Engram sessions — they cause session
+    // inflation (e.g. 170 sessions for 1 real conversation, issue #116).
+    const subAgentSessions = new Set<string>()
+
+    // Sessions already classified (top-level or sub-agent), so a session lookup
+    // runs at most once per session.
+    const classifiedSessions = new Set<string>()
+
+    function classify(sessionId: string, parentID: unknown, title: string): void {
+      classifiedSessions.add(sessionId)
+      // Detection heuristics:
+      //   - parentID is set on all delegated sub-agent sessions
+      //   - title ends with " subagent)" as a secondary signal
+      const isSubAgent = !!parentID || title.endsWith(" subagent)")
+      // Remember sub-agent sessions so tool-hook calls to ensureSession()
+      // are also suppressed for them.
+      if (isSubAgent) subAgentSessions.add(sessionId)
     }
-  }
 
-  // Migrate project name if it changed (one-time, idempotent)
-  // Must run AFTER server startup to ensure the endpoint is available
-  if (oldProject !== project) {
-    await engramFetch("/projects/migrate", {
-      method: "POST",
-      body: { old_project: oldProject, new_project: project },
-    })
-  }
+    /**
+     * Event delivery is asynchronous, so a hook can fire before the
+     * session.created event is processed. Look the session up once instead of
+     * registering a sub-agent by mistake.
+     */
+    async function ensureClassified(sessionId: string): Promise<void> {
+      if (!sessionId || classifiedSessions.has(sessionId)) return
+      try {
+        const info: any = await ctx.session.get(
+          { sessionID: sessionId },
+          { signal: AbortSignal.timeout(SESSION_LOOKUP_TIMEOUT_MS) },
+        )
+        classify(sessionId, info?.parentID, info?.title ?? "")
+      } catch {
+        // Lookup failed — treat as top-level, matching the event-only behavior.
+        classifiedSessions.add(sessionId)
+      }
+    }
 
-  return {
+    /**
+     * Ensure a session exists in engram. Idempotent — calls POST /sessions
+     * which uses INSERT OR IGNORE. Safe to call multiple times.
+     *
+     * Silently skips sub-agent sessions (tracked in `subAgentSessions`).
+     */
+    async function ensureSession(sessionId: string): Promise<void> {
+      if (!sessionId || knownSessions.has(sessionId)) return
+      await ensureClassified(sessionId)
+      // Do not register sub-agent sessions in Engram (issue #116).
+      if (subAgentSessions.has(sessionId)) return
+      knownSessions.add(sessionId)
+      await engramFetch("/sessions", {
+        method: "POST",
+        body: {
+          id: sessionId,
+          project,
+          directory,
+        },
+      })
+    }
+
+    // Try to start engram server if not running
+    const running = await isEngramRunning()
+    if (!running) {
+      startDetached([ENGRAM_BIN, "serve"])
+      await new Promise((r) => setTimeout(r, 500))
+    }
+
+    // Migrate project name if it changed (one-time, idempotent)
+    // Must run AFTER server startup to ensure the endpoint is available
+    if (oldProject !== project) {
+      await engramFetch("/projects/migrate", {
+        method: "POST",
+        body: { old_project: oldProject, new_project: project },
+      })
+    }
+
     // ─── Event Listeners ───────────────────────────────────────────
 
-    event: async ({ event }) => {
-      // --- Session Created ---
-      if (event.type === "session.created") {
-        // Bug fix (#116): session data is nested under event.properties.info,
-        // not event.properties directly.
-        const info = (event.properties as any)?.info
-        const sessionId = info?.id
-        const parentID = info?.parentID
-        const title: string = info?.title ?? ""
+    const events = new AbortController()
+    void (async () => {
+      try {
+        for await (const event of ctx.event.subscribe({
+          types: ["session.created", "session.deleted"],
+          signal: events.signal,
+        })) {
+          // --- Session Created ---
+          if (event.type === "session.created") {
+            // v2 events carry the session payload under event.data.
+            const data: any = event.data
+            const sessionId: string = data?.sessionID
+            if (sessionId) {
+              // Sub-agent sessions must NOT be registered as top-level Engram
+              // sessions. They cause massive session inflation (e.g. 170
+              // sessions for 1 real conversation). classify() remembers them so
+              // ensureSession() suppresses every later registration.
+              classify(sessionId, data?.parentID, data?.title ?? "")
+              await ensureSession(sessionId)
+            }
+          }
 
-        // Sub-agent sessions (created via Task()) must NOT be registered as
-        // top-level Engram sessions. They cause massive session inflation
-        // (e.g. 170 sessions for 1 real conversation).
-        //
-        // Detection heuristics:
-        //   - parentID is set on all Task() sub-agent sessions
-        //   - title ends with " subagent)" as a secondary signal
-        const isSubAgent = !!parentID || title.endsWith(" subagent)")
-
-        if (sessionId && !isSubAgent) {
-          await ensureSession(sessionId)
-        } else if (sessionId && isSubAgent) {
-          // Remember this as a sub-agent session so tool-hook calls
-          // to ensureSession() are also suppressed for it.
-          subAgentSessions.add(sessionId)
+          // --- Session Deleted ---
+          if (event.type === "session.deleted") {
+            const data: any = event.data
+            const sessionId: string = data?.sessionID
+            if (sessionId) {
+              toolCounts.delete(sessionId)
+              knownSessions.delete(sessionId)
+              subAgentSessions.delete(sessionId)
+              classifiedSessions.delete(sessionId)
+              lastNudgeTime.delete(sessionId)
+            }
+          }
         }
+      } catch {
+        // Subscription ended (cleanup or server shutdown) — nothing to do
       }
-
-      // --- Session Deleted ---
-      if (event.type === "session.deleted") {
-        // Same properties.info path as session.created.
-        const info = (event.properties as any)?.info
-        const sessionId = info?.id
-        if (sessionId) {
-          toolCounts.delete(sessionId)
-          knownSessions.delete(sessionId)
-          subAgentSessions.delete(sessionId)
-          lastNudgeTime.delete(sessionId)
-        }
-      }
-
-    },
+    })()
 
     // ─── User Prompt Capture ──────────────────────────────────────
-    // chat.message is called once per user message, before the LLM sees it.
-    // input.sessionID is always reliable here (no knownSessions workaround).
-    // output.message is typed as UserMessage (role:"user" already guaranteed).
-    // output.parts contains TextPart[] with the actual message text.
+    // The prompt hook runs once per user prompt admission, before the LLM sees
+    // it. It does not run for synthetic, shell, or compaction messages.
 
-    "chat.message": async (input, output) => {
+    await ctx.session.hook("prompt", async (event) => {
+      await ensureClassified(event.sessionID)
       // Skip sub-agent sessions — they inflate session counts (issue #116)
-      if (subAgentSessions.has(input.sessionID)) return
+      if (subAgentSessions.has(event.sessionID)) return
 
-      const sessionId = input.sessionID
-
-      // Extract text from parts (type:"text")
-      const content = output.parts
-        .filter((p) => p.type === "text")
-        .map((p) => (p as any).text ?? "")
-        .join("\n")
-        .trim()
-
-      // Also fallback to summary if parts yield nothing
-      const fallback = !content && output.message.summary
-        ? `${output.message.summary.title ?? ""}\n${output.message.summary.body ?? ""}`.trim()
-        : ""
-
-      const finalContent = content || fallback
+      const sessionId = event.sessionID
+      const finalContent = (event.prompt?.text ?? "").trim()
 
       // Only capture non-trivial prompts (>10 chars)
       if (finalContent.length > 10) {
@@ -264,27 +340,30 @@ export const Engram: Plugin = async (ctx) => {
           },
         })
       }
-    },
+    })
 
     // ─── Tool Execution Hook ─────────────────────────────────────
     // Count tool calls per session (for session end stats).
     // Also ensures the session exists — handles plugin reload / reconnect.
-    // Passive capture: when a Task tool completes, POST its output to
+    // Passive capture: when a delegation tool completes, POST its output to
     // the passive capture endpoint so the server extracts learnings.
 
-    "tool.execute.after": async (input, output) => {
-      if (ENGRAM_TOOLS.has(input.tool.toLowerCase())) return
+    await ctx.tool.hook("execute.after", async (event) => {
+      if (ENGRAM_TOOLS.has(event.tool.toLowerCase())) return
 
-      // input.sessionID comes from OpenCode — always available
-      const sessionId = input.sessionID
+      const sessionId = event.sessionID
       if (sessionId) {
         await ensureSession(sessionId)
         toolCounts.set(sessionId, (toolCounts.get(sessionId) ?? 0) + 1)
       }
 
-      // Passive capture: extract learnings from Task tool output
-      if (input.tool === "Task" && output && sessionId) {
-        const text = typeof output === "string" ? output : JSON.stringify(output)
+      // Passive capture: extract learnings from delegation tool output
+      if (
+        DELEGATION_TOOLS.has(event.tool.toLowerCase()) &&
+        event.status === "completed" &&
+        sessionId
+      ) {
+        const text = toolResultText(event.result)
         if (text.length > 50) {
           await engramFetch("/observations/passive", {
             method: "POST",
@@ -297,17 +376,17 @@ export const Engram: Plugin = async (ctx) => {
           })
         }
       }
-    },
+    })
 
     // ─── Save nudge ─────────────────────────────────────────────
     // AGENTS.md owns the durable memory policy. This hook adds only a debounced
     // reminder when the session has gone a long time without saving.
-    "experimental.chat.system.transform": async (input, output) => {
+    await ctx.session.hook("context", async (event) => {
       // If it has been a long time since the last mem_save, append a reminder
       // to the system prompt so the agent notices. All fetches are fire-and-
       // forget with short timeouts — any failure silently skips the nudge.
       try {
-        const sessionID: string = input.sessionID ?? ""
+        const sessionID: string = event.sessionID ?? ""
         if (!sessionID || subAgentSessions.has(sessionID)) return
 
         // SQLite datetime('now') returns "YYYY-MM-DD HH:MM:SS" in UTC with no
@@ -371,57 +450,59 @@ export const Engram: Plugin = async (ctx) => {
         // Only nudge if last save was more than 15 minutes ago
         if (nowSecs - lastObsEpoch < 900) return
 
-        // Append the nudge to the last system message
+        // Append the nudge to the last system part
         const nudge =
           "\n\nMEMORY REMINDER: It's been over 15 minutes since your last memory save. " +
           "If you've made decisions, discoveries, completed significant work, or found non-obvious things, " +
           "call mem_save now."
-        if (output.system.length > 0) {
-          output.system[output.system.length - 1] += nudge
-        } else {
-          output.system.push(nudge)
-        }
+        appendToSystem(event.system as SystemPart[], nudge)
         lastNudgeTime.set(sessionID, nowSecs)
       } catch {
         // Any unexpected error — silently skip the nudge, never crash the hook
       }
-    },
+    })
 
-    // ─── Compaction Hook: Persist memory + inject context ──────────
+    // ─── Compaction Hook: Inject recovery guidance ──────────────
     // Compaction is triggered by the system (not the agent) when context
     // gets too long. The old agent "dies" and a new one starts with the
-    // compacted summary. This is our chance to:
-    // 1. Auto-save a session checkpoint (the agent can't do this itself)
-    // 2. Inject context from previous sessions into the compaction prompt
-    // 3. Tell the compressor to remind the new agent to save memories
+    // compacted summary. This hook does not persist a checkpoint. It can only
+    // inject existing context and recovery instructions into the prompt.
 
-    "experimental.session.compacting": async (input, output) => {
-      if (input.sessionID) {
-        await ensureSession(input.sessionID)
+    await ctx.session.hook("compaction", async (event) => {
+      if (event.sessionID) {
+        await ensureSession(event.sessionID)
       }
+      const system = event.system as SystemPart[]
 
       // Inject context from previous sessions
       const data = await engramFetch(
         `/context?project=${encodeURIComponent(project)}`
       )
       if (data?.context) {
-        output.context.push(data.context)
+        system.push({ type: "text", text: data.context })
       }
 
       // Tell the compressor to instruct the new agent to persist the
       // compacted summary to Engram. The new agent reads the compacted
       // summary and this instruction, then saves it as a session summary.
-      output.context.push(
-        `CRITICAL INSTRUCTION FOR COMPACTED SUMMARY:\n` +
-        `The agent has access to Engram persistent memory via MCP tools.\n` +
-        `You MUST include the following instruction at the TOP of the compacted summary:\n\n` +
-        `"FIRST ACTION REQUIRED: Call mem_session_summary with content set to this compacted summary` +
-        `${input.sessionID ? ` and session_id: '${input.sessionID}'` : ""}. ` +
-        `This preserves what was accomplished before compaction. Do this BEFORE any other work. ` +
-        `Then IMMEDIATELY call mem_context with project: '${project}' if that parameter is supported. ` +
-        `Retrieve the relevant persistent context before continuing."\n\n` +
-        `This is NOT optional. Without this, everything done before compaction is lost from memory.`
-      )
-    },
-  }
+      system.push({
+        type: "text",
+        text:
+          `CRITICAL INSTRUCTION FOR COMPACTED SUMMARY:\n` +
+          `The agent has access to Engram persistent memory via MCP tools.\n` +
+          `You MUST include the following instruction at the TOP of the compacted summary:\n\n` +
+          `"FIRST ACTION REQUIRED: Call mem_session_summary with the content of this compacted summary. ` +
+          `Use session_id: '${event.sessionID}'. This preserves what was accomplished before compaction. Do this BEFORE any other work. ` +
+          `Then IMMEDIATELY call mem_context, search for the latest ` +
+          `'orchestrator/session-checkpoint/${event.sessionID}' observation, and retrieve it with mem_get_observation. ` +
+          `Re-observe any state required by its exact next action before continuing."\n\n` +
+          `The hook does not persist a checkpoint. Recovery is only complete after those Engram reads succeed.`,
+      })
+    })
+
+    // Hook registrations are disposed by OpenCode; stop the event loop here.
+    return () => events.abort()
+  },
 }
+
+export default EngramPlugin

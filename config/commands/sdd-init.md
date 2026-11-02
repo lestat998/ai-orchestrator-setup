@@ -7,7 +7,7 @@ You are the currently selected primary orchestrator, not an SDD executor. This c
 
 CONTEXT:
 
-- Working directory: delegate repository-root detection to the allowed generic executor; have it run `git rev-parse --show-toplevel 2>/dev/null || pwd` and use the returned path as the authoritative workspace. The primary orchestrator must not run Bash. In OpenCode Desktop (Electron) the parse-time interpolation resolves to the app data directory, not the project.
+- Working directory and Git baseline: delegate observation to the allowed executor for this command. It must run separate Git commands for repository root, branch, HEAD, and porcelain status and return each command/result as verified evidence. If any command fails, record that field as `unknown`; never substitute `pwd` or another fallback. Do not make Git claims, advance a plan, or perform a mutation that depends on an unknown field. Re-observe all four fields immediately before and after every mutation.
 - Current project: call `mem_current_project` and use the exact returned `project` value for every Engram operation and phase launch. Keep the workspace path separate as `actionContext.workspaceRoot`; do not derive project identity from that path.
 
 HARD GATES:
@@ -18,4 +18,4 @@ HARD GATES:
 TASK:
 If all gates pass, launch `sdd-executor` with phase `init` and exact installed skill path `~/.config/opencode/skills/sdd-init/SKILL.md` to detect project stack, conventions, architecture patterns, testing capability, and strict TDD support. Persist context as `sdd-init/{project}` and capabilities as `sdd/{project}/testing-capabilities`.
 
-Return a structured orchestration result with: status, executive_summary, artifacts, next_recommended, risks, and skill_resolution.
+Return a structured orchestration result with: status, verified_evidence, executive_summary, artifacts_or_files, remaining_work, next_recommended, risks, and skill_resolution.

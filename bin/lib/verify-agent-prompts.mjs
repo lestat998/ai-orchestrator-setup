@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const promptPaths = ["prompts/orchestrator.md", "prompts/orchestrator-gpt.md"];
+const promptPaths = ["prompts/orchestrator.md", "prompts/orchestrator-gpt.md", "prompts/orchestrator-go.md"];
 
 function required(source, text, name, failures) {
   if (!source.includes(text)) failures.push(name);
@@ -32,6 +32,7 @@ export function verifyAgentPrompts(configRoot) {
   const expected = new Map([
     ["ai-orchestrator", "{file:./prompts/orchestrator.md}"],
     ["ai-orchestrator-gpt", "{file:./prompts/orchestrator-gpt.md}"],
+    ["ai-orchestrator-go", "{file:./prompts/orchestrator-go.md}"],
   ]);
   const expectedAgents = new Set([
     "ai-orchestrator",
@@ -42,11 +43,22 @@ export function verifyAgentPrompts(configRoot) {
     "readonly-reviewer-gpt",
     "fix-executor-gpt",
     "sdd-executor-gpt",
+    "ai-orchestrator-go",
+    "readonly-reviewer-go",
+    "fix-executor-go",
+    "sdd-executor-go",
   ]);
 
   if (primary.length !== expected.size) failures.push("primary-agent-count");
   for (const [name, prompt] of expected) {
     if (config.agent?.[name]?.prompt !== prompt) failures.push(`primary-agent-prompt:${name}`);
+  }
+  for (const [name, agent] of primary) {
+    for (const [route, permission] of Object.entries(agent.permission?.task ?? {})) {
+      if (route !== "*" && permission === "allow" && !config.agent?.[route]) {
+        failures.push(`undefined-task-route:${name}:${route}`);
+      }
+    }
   }
   if (Object.keys(config.agent ?? {}).some((name) => !expectedAgents.has(name))) failures.push("unsupported-agent-topology");
   if (config.provider?.["runpod-local-model"]) failures.push("private-provider-present");
@@ -67,7 +79,7 @@ export function verifyAgentPrompts(configRoot) {
     }
   }
 
-  for (const name of ["readonly-reviewer", "readonly-reviewer-gpt"]) {
+  for (const name of ["readonly-reviewer", "readonly-reviewer-gpt", "readonly-reviewer-go"]) {
     const reviewer = config.agent?.[name];
     if (!reviewer || reviewer.tools?.read !== true || reviewer.tools?.bash !== true || reviewer.tools?.edit === true || reviewer.tools?.write === true) {
       failures.push(`readonly-reviewer-tools:${name}`);
@@ -90,7 +102,6 @@ export function verifyAgentPrompts(configRoot) {
 
   const gptPrompt = readFileSync(resolve(configRoot, "prompts/orchestrator-gpt.md"), "utf8");
   required(gptPrompt, "`readonly-reviewer` → `readonly-reviewer-gpt`", "prompts/orchestrator-gpt.md:readonly-reviewer-gpt-remapping", failures);
-  required(gptPrompt, "`general` / `general-purpose` → unchanged", "prompts/orchestrator-gpt.md:general-remapping", failures);
 
   const agents = readFileSync(resolve(configRoot, "AGENTS.md"), "utf8");
   ordered(agents, "## Request Interpretation and Answer Shape", "### CONTEXT PREFLIGHT", "agents:request-before-memory", failures);

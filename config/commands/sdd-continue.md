@@ -33,11 +33,11 @@ WORKFLOW:
 
    If `blockedReasons` is non-empty, do not proceed to apply, archive, or terminal work. If `nextRecommended` is `verify`, verification/remediation may run only to refresh evidence; if it is `resolve-blockers`, report `blockedReasons` and stop.
 6. After every successful non-archive phase transition, create or upsert `sdd/$ARGUMENTS/state` as `active` with complete DAG progress and all known artifact observation IDs. If `spec` was routed because `rebase_required: true`, clear that flag only after the replacement spec persists, preserve the aborted/conflicted generation history, retain its generation number so the next archive attempt increments it, and preserve `reopened: false` so the consumed reservation cannot be restored. For `spec-and-design`, wait for BOTH executions, persist one joined state update containing both results, then present the result. If either branch fails, do not mark the joined stage successful. Archive owns its terminal `state: archived` write; after archive returns success, do not write active state or mutate any archived artifact.
-7. Present the result and ask the user to proceed
+7. After validating the child envelope, persist the phase state and durable session checkpoint before accepting the result. In `auto` mode continue immediately to the next dependency-ready phase without asking or pausing. In `interactive` mode present the result, ask exactly once whether to proceed, and STOP until the user responds.
 
 CONTEXT:
 
-- Working directory: delegate repository-root detection to the allowed generic executor; have it run `git rev-parse --show-toplevel 2>/dev/null || pwd` and use the returned path as the authoritative workspace. The primary orchestrator must not run Bash. In OpenCode Desktop (Electron) the parse-time interpolation resolves to the app data directory, not the project.
+- Working directory and Git baseline: delegate observation to the allowed executor for this command. It must run separate Git commands for repository root, branch, HEAD, and porcelain status and return each command/result as verified evidence. If any command fails, record that field as `unknown`; never substitute `pwd` or another fallback. Do not make Git claims, advance a plan, or perform a mutation that depends on an unknown field. Re-observe all four fields immediately before and after every mutation.
 - Current project: call `mem_current_project` and use the exact returned `project` value for every Engram search/save and phase launch. Keep the detected workspace path separate as `actionContext.workspaceRoot`; do not derive Engram project identity from that path.
 - Change name: $ARGUMENTS
 - Execution mode: ask/cache per orchestrator

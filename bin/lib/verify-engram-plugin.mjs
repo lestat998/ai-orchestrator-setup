@@ -3,14 +3,26 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+// OpenCode v2 replaced `experimental.session.compacting` with the session
+// `compaction` hook.
 function compactionGuidance(source) {
-  const hookStart = source.search(/["']experimental\.session\.compacting["']\s*:/);
+  const hookStart = source.search(/await\s+ctx\.session\.hook\(\s*["']compaction["']/);
   return hookStart === -1 ? "" : source.slice(hookStart);
+}
+
+// OpenCode v2 replaced `chat.message` with the session `prompt` hook.
+function promptHook(source) {
+  const hookStart = source.search(/await\s+ctx\.session\.hook\(\s*["']prompt["']/);
+  if (hookStart === -1) return "";
+  const afterStart = source.slice(hookStart);
+  const hookLength = afterStart.search(/await\s+ctx\.\w+\.hook\(\s*["'](?!prompt)/);
+  return hookLength === -1 ? afterStart : afterStart.slice(0, hookLength);
 }
 
 function sessionCreatedHandler(source) {
   const handlerStart = source.search(/event\.type\s*===\s*["']session\.created["']/);
   if (handlerStart === -1) return "";
+
   const afterStart = source.slice(handlerStart);
   const handlerLength = afterStart.search(/event\.type\s*===\s*["']session\.deleted["']/);
   const handlerEnd = handlerLength === -1 ? undefined : handlerStart + handlerLength;
@@ -19,9 +31,24 @@ function sessionCreatedHandler(source) {
 
 const invariants = [
   {
-    name: "session-created-reads-properties-info",
+    name: "v2-default-plugin-definition",
     present: (source) =>
-      /const\s+info\s*=\s*\(?event\.properties[\s\S]{0,40}?\.info/.test(sessionCreatedHandler(source)),
+      /export\s+default\s+EngramPlugin\b/.test(source) &&
+      /id:\s*["']engram["']/.test(source) &&
+      /async\s+setup\(\s*ctx\s*\)/.test(source),
+  },
+  {
+    name: "no-v1-plugin-factory-export",
+    present: (source) =>
+      !/export\s+(const|let|var|function|async\s+function)\s/.test(source) &&
+      !/@opencode-ai\/plugin/.test(source),
+  },
+  {
+    name: "session-created-reads-event-data",
+    present: (source) =>
+      /const\s+data(\s*:\s*any)?\s*=\s*event\.data\b[\s\S]{0,80}?data\?\.sessionID/.test(
+        sessionCreatedHandler(source),
+      ),
   },
   {
     name: "subagents-classified-by-parent-or-title",
@@ -38,7 +65,8 @@ const invariants = [
   },
   {
     name: "subagent-prompt-capture-suppressed",
-    present: (source) => /subAgentSessions\.has\(\s*input\.sessionID\s*\)\s*\)\s*return/.test(source),
+    present: (source) =>
+      /subAgentSessions\.has\(\s*event\.sessionID\s*\)\s*\)\s*return/.test(promptHook(source)),
   },
   {
     name: "agents-owns-durable-memory-policy",
@@ -53,29 +81,34 @@ const invariants = [
     present: (source) => !/\.engram\/manifest\.json|sync["']\s*,\s*["']--import/.test(source),
   },
   {
-    name: "native-compaction-injects-engram-context",
-    present: (source) => {
-      const guidance = compactionGuidance(source);
-      return /\/context\?project=/.test(guidance) && /output\.context\.push\(data\.context\)/.test(guidance);
-    },
-  },
-  {
     name: "native-compaction-summarizes-before-context",
     present: (source) => {
       const guidance = compactionGuidance(source);
       const summaryIndex = guidance.indexOf("mem_session_summary");
       const contextIndex = guidance.indexOf("mem_context");
-      return guidance.includes("FIRST ACTION REQUIRED") && summaryIndex !== -1 && contextIndex > summaryIndex;
+      return (
+        guidance.includes("FIRST ACTION REQUIRED") &&
+        summaryIndex !== -1 &&
+        contextIndex !== -1 &&
+        summaryIndex < contextIndex
+      );
     },
   },
   {
-    name: "native-compaction-uses-supported-summary-contract",
+    name: "compaction-hook-does-not-claim-checkpoint-persistence",
     present: (source) => {
       const guidance = compactionGuidance(source);
-      const summaryStart = guidance.indexOf("Call mem_session_summary");
-      const summaryEnd = guidance.indexOf("Then IMMEDIATELY call mem_context");
-      const summaryInstruction = summaryStart === -1 || summaryEnd === -1 ? "" : guidance.slice(summaryStart, summaryEnd);
-      return summaryInstruction.includes("content") && summaryInstruction.includes("session_id") && !summaryInstruction.includes("project:");
+      return guidance.includes("hook does not persist a checkpoint") &&
+        !guidance.includes("Auto-save a session checkpoint");
+    },
+  },
+  {
+    name: "native-compaction-recovers-session-checkpoint",
+    present: (source) => {
+      const guidance = compactionGuidance(source);
+      return guidance.includes("orchestrator/session-checkpoint/") &&
+        guidance.includes("mem_get_observation") &&
+        guidance.includes("Re-observe any state required by its exact next action");
     },
   },
 ];
@@ -93,6 +126,7 @@ function main() {
     process.exitCode = 2;
     return;
   }
+
   try {
     const missing = verifyEngramPlugin(readFileSync(pluginPath, "utf8"));
     if (missing.length > 0) {

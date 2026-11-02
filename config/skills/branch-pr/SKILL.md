@@ -22,7 +22,6 @@ Use this skill when:
 2. **Every PR MUST have exactly one `type:*` label**
 3. **Automated checks must pass** before merge is possible
 4. **Blank PRs without issue linkage will be blocked** by GitHub Actions
-5. **Every PR, including drafts, MUST be assigned to the authenticated GitHub user**
 
 ---
 
